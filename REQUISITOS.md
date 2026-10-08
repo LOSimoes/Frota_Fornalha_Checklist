@@ -15,9 +15,9 @@ Status: levantamento iniciado em 07/10/2026 e atualizado em 08/10/2026. Requisit
 - Os dois Fiat Mobi são carros dos vendedores, sem refrigeração. Há dois vendedores além dos três motoristas informados. Proposta: permitir que vendedores também selecionem seu nome para vistoriar os Mobi.
 - Confirmadas quatro vans refrigeradas: três Renault Master e uma Fiat Ducato, além dos dois Mobi dos vendedores. Novos veículos poderão ser cadastrados futuramente.
 - Correção do responsável em 08/10/2026: o levantamento de temperatura serve para indicar possível necessidade de manutenção da refrigeração. Substitui a proposta anterior de alerta de descongelamento acima de −16 °C.
-- Faixa de aviso definida na última formulação do responsável: −14 °C a −10 °C, inclusive. Exibir “Atenção à refrigeração — avaliar manutenção em breve”. A menção inicial de −10 °C a −5 °C foi corrigida na mesma mensagem para −14 °C a −10 °C.
+- Regra atualizada pelo responsável após teste em 08/10/2026: temperatura maior ou igual a −13 °C, sem limite superior, exibe “Atenção à refrigeração — avaliar manutenção em breve”. Inclui −13, −12, −9, −5 e valores mais quentes. Substitui o intervalo anterior de −14 °C a −10 °C, que deixava −9 °C sem aviso.
 - Esse aviso não bloqueia a saída nem determina automaticamente defeito, serviço necessário ou condição de conservação do alimento. A faixa é um critério operacional fornecido pelo responsável, não uma especificação sanitária ou diagnóstico técnico.
-- Não criar alertas adicionais de temperatura nesta versão. Manter o campo de temperatura da vistoria; fora da faixa de aviso, não gerar ocorrência automática nem rotular a refrigeração como OK apenas pela ausência de alerta. Não criar registro adicional de ocorrência para valores mais quentes que −10 °C, conforme o escopo solicitado.
+- Manter o campo de temperatura da vistoria e um único aviso de manutenção a partir de −13 °C para valores mais quentes. Abaixo de −13 °C não exibir esse aviso, sem rotular a refrigeração como OK apenas pela ausência de alerta. Campo vazio ou inválido não produz aviso e continua sujeito à validação de preenchimento.
 - Por enquanto, somente o responsável pela frota (Lucas) pode liberar veículos com problemas.
 - Registrar quilometragem, condição do veículo, óleo verificado, freios, motor, refrigeração, temperatura, observações e fotos de ocorrências.
 - Preenchimento offline e sincronização posterior por Wi-Fi ou rede móvel.
@@ -103,7 +103,7 @@ Status: levantamento iniciado em 07/10/2026 e atualizado em 08/10/2026. Requisit
 ## Confirmações pendentes
 
 1. Placas/apelidos, anos e km; qual Master é curta/longa; nomes dos motoristas.
-2. Definir o ponto e a condição de medição da temperatura (por exemplo, leitura do painel após refrigeração estabilizada), para que o histórico de manutenção seja comparável. Aviso de manutenção entre −14 °C e −10 °C já definido pelo responsável.
+2. Definir o ponto e a condição de medição da temperatura (por exemplo, leitura do painel após refrigeração estabilizada), para que o histórico de manutenção seja comparável. Aviso de manutenção para temperatura maior ou igual a −13 °C já definido pelo responsável.
 3. Procedimento de avaliação técnica para ocorrência crítica ou item de segurança não verificado; liberação exclusiva de Lucas já confirmada.
 4. Tratamento de feriados, vistorias fora do horário, viagens adicionais e veículos sem uso no dia; operação de segunda a sexta já confirmada.
 5. Acesso administrativo, endereço externo, disponibilidade do servidor, armazenamento e backup.

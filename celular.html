@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Fornalha · Prévia no celular</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;background:#e8ede7;color:#20352e;font-family:Segoe UI,Arial,sans-serif}main{max-width:1000px;margin:auto;padding:32px 20px;display:flex;align-items:flex-start;justify-content:center;gap:52px}.intro{max-width:340px;padding-top:28px}small{letter-spacing:2px;font-weight:700;color:#51705c}h1{font-size:34px;line-height:1.15;letter-spacing:-1px}p{line-height:1.6;color:#54645a}label{display:block;font-weight:600;margin:24px 0 8px}select,a{font:inherit}select{padding:12px;border-radius:10px;border:1px solid #a7b7a9;background:white;max-width:100%}a{color:#215f46;display:inline-block;margin-top:20px}.device{width:414px;flex:none;background:#17241d;border-radius:38px;padding:12px;box-shadow:0 20px 55px #15321f25}.screen{height:844px;overflow:hidden;border-radius:27px;background:#f3f5f1}iframe{display:block;border:0;width:100%;height:100%;background:#f3f5f1}.caption{text-align:center;color:#cbd6cc;font-size:11px;padding:10px 0 2px;margin:0}@media(max-width:800px){main{flex-direction:column;align-items:center;gap:20px;padding:20px 10px}.intro{padding:0;max-width:440px}h1{font-size:26px;margin:12px 0}.device{max-width:100%}.screen{height:75vh;min-height:500px}}select:focus-visible,a:focus-visible{outline:3px solid #c48024;outline-offset:3px}
+  </style>
+</head>
+<body>
+<main>
+  <section class="intro">
+    <small>FORNALHA · PRÉVIA INTERATIVA</small>
+    <h1>O checklist na palma da mão.</h1>
+    <p>Teste o mesmo aplicativo em uma tela estreita. Preencha os campos, avance e experimente o painel do gestor.</p>
+    <p>Os botões <strong>Voltar</strong> e <strong>Continuar</strong> ficam no rodapé. A página rola dentro do celular.</p>
+    <label for="size">Tamanho da tela</label>
+    <select id="size" onchange="resizePreview(this.value)">
+      <option value="390,844">Celular médio · 390 × 844</option>
+      <option value="360,740">Celular compacto · 360 × 740</option>
+      <option value="412,915">Celular grande · 412 × 915</option>
+    </select>
+    <p>Na refrigeração, experimente <strong>−13 °C ou −9 °C</strong>: os dois valores mostram o aviso de manutenção.</p>
+    <p><small>Modelo sem salvamento de dados. Esta prévia simula o tamanho da tela; câmera, teclado e instalação precisam ser testados no Android.</small></p>
+    <a href="index.html" target="_blank" rel="noopener">Abrir aplicativo em tela inteira ↗</a>
+  </section>
+  <section class="device" id="device" aria-label="Prévia do celular">
+    <div class="screen" id="screen"><iframe src="index.html" title="Checklist da frota em tamanho de celular"></iframe></div>
+    <p class="caption">FORNALHA · MODELO INTERATIVO</p>
+  </section>
+</main>
+<script>
+function resizePreview(value){const [width,height]=value.split(',').map(Number);document.getElementById('device').style.width=(width+24)+'px';document.getElementById('screen').style.height=height+'px';}
+</script>
+</body>
+</html>

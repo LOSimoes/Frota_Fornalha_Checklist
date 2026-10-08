@@ -60,7 +60,7 @@ test('fluxo completo da van, temperatura via evento e limites do aviso',()=>{
   }
   assert.match(a.nodes.app.innerHTML,/<h2>Refrigeração<\/h2>/);
   a.run("answers.frio='OK'");
-  for(const [t,warn] of [[-18,false],[-16,false],[-14,true],[-12,true],[-10,true],[-9,false]]){
+  for(const [t,warn] of [[-18,false],[-16,false],[-14,false],[-13.1,false],[-13,true],[-12,true],[-10,true],[-9,true],[-5,true],[0,true],[5,true],['',false],[' ',false],['abc',false]]){
     a.input('Temperatura indicada (°C)',String(t));
     assert.equal(a.nodes.tempNotice.innerHTML.includes('avaliar manutenção'),warn);
   }
