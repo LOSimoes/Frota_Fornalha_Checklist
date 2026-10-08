@@ -67,6 +67,10 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
       const url = new URL(req.url, allowedOrigin);
       if (req.method === 'POST') {
         if (req.headers.origin !== allowedOrigin) return json(res, 403, { message: 'Origem não autorizada.' });
+        if (url.pathname === '/api/catalog') {
+          if(!session(req))return json(res,401,{message:'Entre no painel para alterar cadastros.'});
+          return json(res,200,store.saveCatalog(await body(req)));
+        }
         if (url.pathname === '/api/inspections') {
           const receipt = store.save(await body(req, 32768), now());
           return json(res, receipt.duplicate ? 200 : 201, receipt);
@@ -113,12 +117,18 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
       if (req.method !== 'GET') return json(res, 405, { message: 'Método não permitido.' });
       if (url.pathname === '/api/inspections') {
         if (!session(req)) return json(res, 401, { message:'Entre no painel para consultar as vistorias.' });
-        return json(res, 200, store.list(url.searchParams.get('date') || dateKey(now())));
+        const start=url.searchParams.get('start')||url.searchParams.get('date')||dateKey(now());
+        return json(res, 200, store.list(start,url.searchParams.get('end')||start));
+      }
+      if(url.pathname==='/api/catalog')return json(res,200,store.catalog());
+      if(url.pathname==='/api/catalog/admin'){
+        if(!session(req))return json(res,401,{message:'Entre no painel para consultar cadastros.'});
+        return json(res,200,store.catalog(true));
       }
       if (url.pathname === '/api/session') return json(res, session(req) ? 200 : 401, { authenticated: !!session(req) });
-      if (url.pathname === '/gestor') {
+      if (['/gestor','/cadastros'].includes(url.pathname)) {
         if (!session(req)) { res.writeHead(303, { Location: '/acesso' }); return res.end(); }
-        return await serve(res, 'pages/gestor.html');
+        return await serve(res, url.pathname==='/cadastros'?'pages/cadastros.html':'pages/gestor.html');
       }
       const routes = {
         '/': ['index.html'], '/index.html': ['index.html'], '/celular.html': ['celular.html'],
@@ -126,6 +136,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         '/sw.js': ['sw.js', 'text/javascript; charset=utf-8'],
         '/acesso': ['pages/acesso.html'], '/acesso.js': ['pages/acesso.js', 'text/javascript; charset=utf-8'],
         '/gestor.js': ['pages/gestor.js', 'text/javascript; charset=utf-8'], '/gestor.css': ['pages/gestor.css', 'text/css; charset=utf-8']
+        ,'/cadastros.js':['pages/cadastros.js','text/javascript; charset=utf-8']
       };
       if (routes[url.pathname]) return await serve(res, ...routes[url.pathname]);
       return json(res, 404, { message: 'Não encontrado.' });

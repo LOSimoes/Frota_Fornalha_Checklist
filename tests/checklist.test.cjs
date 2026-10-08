@@ -79,3 +79,8 @@ test('Mobi chega à revisão sem exigir refrigeração',()=>{
   assert.match(a.nodes.app.innerHTML,/Confira antes de concluir/);
   assert.doesNotMatch(a.nodes.app.innerHTML,/Temperatura:/);
 });
+
+test('sugere carro habitual e permite trocar sem alterar o motorista',()=>{
+ const a=app();a.run('drivers[0].suggestedVehicleId=2');a.input('Seu nome','Motorista 01 · exemplo');assert.equal(a.run('inspectionState.vehicle'),2);
+ a.input('Veículo','4');assert.equal(a.run('inspectionState.vehicle'),4);assert.equal(a.run('inspectionState.name'),'Motorista 01 · exemplo');assert.equal(a.run('refrigerated()'),false);
+});

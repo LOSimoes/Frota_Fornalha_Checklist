@@ -1,4 +1,4 @@
-const CACHE='fornalha-driver-v1';
+const CACHE='fornalha-driver-v2';
 const ASSETS=['/','/index.html','/outbox.js','/driver.js'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('fornalha-driver-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));

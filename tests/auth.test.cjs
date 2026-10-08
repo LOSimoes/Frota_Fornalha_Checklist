@@ -48,6 +48,10 @@ test('acesso privado: configuração, sessão, limites, saída e persistência',
   const saved = await fs.readFile(path.join(dir, 'admin.json'), 'utf8'); assert.ok(!saved.includes(password)); assert.equal(JSON.parse(saved).hash.length, 128);
   assert.equal((await call('/gestor', { cookie })).status, 200);
   assert.equal((await call('/api/inspections')).status,401);
+  assert.equal((await call('/api/catalog/admin')).status,401);
+  assert.equal((await call('/api/catalog',{method:'POST',payload:{kind:'driver',name:'Teste',active:true}})).status,401);
+  assert.equal((await call('/api/catalog',{method:'POST',cookie,payload:{kind:'driver',name:'Teste',active:true},requestOrigin:'https://outro-site.example'})).status,403);
+  assert.equal((await call('/api/catalog',{method:'POST',cookie,payload:{kind:'driver',name:'Teste',active:true}})).status,200);
   const inspection={version:1,id:require('node:crypto').randomUUID(),inspectedAt:new Date(clock).toISOString(),driver:'Motorista de teste',vehicle:0,type:'Saída',km:35000,temperature:-9,answers:Object.fromEntries(['pneus','freios','luzes','oleo','motor','avarias','seguranca','frio'].map(id=>[id,'OK'])),notes:{},levels:{}};
   assert.equal((await call('/api/inspections',{method:'POST',payload:inspection,requestOrigin:'https://outro-site.example'})).status,403);
   assert.equal((await call('/api/inspections',{method:'POST',payload:inspection})).status,201);

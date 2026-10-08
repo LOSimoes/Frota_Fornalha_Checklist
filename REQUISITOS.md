@@ -71,6 +71,10 @@ Status: levantamento iniciado em 07/10/2026 e atualizado em 08/10/2026. Requisit
 
 ## Painel e manutenção propostos
 
+Implementado em 08/10/2026: período inclusivo com início/fim e atalhos Hoje, Últimos 15 dias e Este mês; relatório imprimível completo de defeitos e alertas; gráfico por categoria com relatos, dias distintos e veículos afetados. Itens não verificados ficam separados. Repetições são relatos, não novos defeitos únicos; os números não constituem previsão automática de falhas.
+
+Cadastros editáveis: criação, renomeação e inativação de motoristas/vendedores e veículos, com identificação estável e nomes preservados nas vistorias. Vínculo manual de veículo tem prioridade; no automático, usa-se o mais frequente nas últimas 30 vistorias do motorista, desempate pelo mais recente. A escolha pode ser alterada pelo motorista sem mudar o vínculo manual. O verde da interface foi mantido conforme solicitado.
+
 - Primeiro: ocorrências críticas, batidas novas e pendências de freio, pneus, direção, motor e refrigeração.
 - Situação diária por veículo: saída/retorno recebidos, ausentes ou recebidos fora da janela. Ausência no servidor pode significar registro ainda offline.
 - Cobrança regular de vistorias de segunda a sexta; propor exceções para feriados, veículo sem uso e manutenção, com motivo registrado pelo gestor.
