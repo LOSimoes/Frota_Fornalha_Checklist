@@ -3,6 +3,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { promisify } = require('node:util');
+const { openStore, dateKey } = require('./inspections.cjs');
 const scrypt = promisify(crypto.scrypt);
 const ROOT = __dirname;
 const SESSION_MS = 8 * 60 * 60 * 1000;
@@ -17,6 +18,8 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
     credentials = JSON.parse(await fs.readFile(credentialFile, 'utf8'));
     if (credentials.version !== 1 || !/^[a-f0-9]{32}$/.test(credentials.salt) || !/^[a-f0-9]{128}$/.test(credentials.hash)) throw new Error('Cadastro de acesso inválido.');
   } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  await fs.mkdir(dataDir, { recursive:true, mode:0o700 });
+  const store = openStore(dataDir);
   let setupToken = credentials ? null : crypto.randomBytes(32).toString('hex');
   const setupExpires = now() + 30 * 60 * 1000;
   const sessions = new Map();
@@ -39,12 +42,12 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
     sessions.set(tokenHash(token), now() + SESSION_MS);
     res.setHeader('Set-Cookie', cookie(token, SESSION_MS / 1000));
   }
-  async function body(req) {
+  async function body(req, maxBytes = 4096) {
     if (!(req.headers['content-type'] || '').startsWith('application/json')) throw Object.assign(new Error('Formato inválido.'), { status: 415 });
     let raw = '';
     for await (const chunk of req) {
       raw += chunk;
-      if (Buffer.byteLength(raw) > 4096) throw Object.assign(new Error('Dados excedem o limite.'), { status: 413 });
+      if (Buffer.byteLength(raw) > maxBytes) throw Object.assign(new Error('Dados excedem o limite.'), { status: 413 });
     }
     try { return JSON.parse(raw); } catch { throw Object.assign(new Error('Dados inválidos.'), { status: 400 }); }
   }
@@ -64,6 +67,10 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
       const url = new URL(req.url, allowedOrigin);
       if (req.method === 'POST') {
         if (req.headers.origin !== allowedOrigin) return json(res, 403, { message: 'Origem não autorizada.' });
+        if (url.pathname === '/api/inspections') {
+          const receipt = store.save(await body(req, 32768), now());
+          return json(res, receipt.duplicate ? 200 : 201, receipt);
+        }
         if (url.pathname === '/api/logout') {
           const key = session(req); if (key) sessions.delete(key);
           res.setHeader('Set-Cookie', cookie('', 0)); return json(res, 200, { ok: true });
@@ -104,6 +111,10 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         } finally { busy = false; }
       }
       if (req.method !== 'GET') return json(res, 405, { message: 'Método não permitido.' });
+      if (url.pathname === '/api/inspections') {
+        if (!session(req)) return json(res, 401, { message:'Entre no painel para consultar as vistorias.' });
+        return json(res, 200, store.list(url.searchParams.get('date') || dateKey(now())));
+      }
       if (url.pathname === '/api/session') return json(res, session(req) ? 200 : 401, { authenticated: !!session(req) });
       if (url.pathname === '/gestor') {
         if (!session(req)) { res.writeHead(303, { Location: '/acesso' }); return res.end(); }
@@ -111,6 +122,8 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
       }
       const routes = {
         '/': ['index.html'], '/index.html': ['index.html'], '/celular.html': ['celular.html'],
+        '/outbox.js': ['outbox.js', 'text/javascript; charset=utf-8'], '/driver.js': ['driver.js', 'text/javascript; charset=utf-8'],
+        '/sw.js': ['sw.js', 'text/javascript; charset=utf-8'],
         '/acesso': ['pages/acesso.html'], '/acesso.js': ['pages/acesso.js', 'text/javascript; charset=utf-8'],
         '/gestor.js': ['pages/gestor.js', 'text/javascript; charset=utf-8'], '/gestor.css': ['pages/gestor.css', 'text/css; charset=utf-8']
       };
@@ -120,7 +133,8 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
   });
   server.requestTimeout = 15000;
   server.headersTimeout = 10000;
-  return { server, setupToken };
+  server.on('close', () => store.close());
+  return { server, setupToken, store };
 }
 
 if (require.main === module) {

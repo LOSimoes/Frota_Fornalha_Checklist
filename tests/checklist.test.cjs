@@ -7,7 +7,7 @@ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
 
 function app(){
   const nodes={};
-  const context=vm.createContext({document:{getElementById(id){return nodes[id]??={classList:{toggle(){}},showModal(){this.open=true;}}}},window:{scrollTo(){}}});
+  const context=vm.createContext({document:{getElementById(id){return nodes[id]??={classList:{toggle(){}},showModal(){this.open=true;}}}},window:{scrollTo(){}},completeInspection(){nodes.completed=true;}});
   vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
   const run=code=>vm.runInContext(code,context);
   // Inline browser handlers resolve element properties before outer variables.
@@ -67,7 +67,7 @@ test('fluxo completo da van, temperatura via evento e limites do aviso',()=>{
   a.input('Temperatura indicada (°C)','-12');a.run('next()');
   assert.match(a.nodes.app.innerHTML,/Confira antes de concluir/);
   assert.match(a.nodes.app.innerHTML,/-12 °C/);
-  a.run('next()');assert.equal(a.nodes.modal.open,true);
+  a.run('next()');assert.equal(a.nodes.completed,true);
 });
 
 test('Mobi chega à revisão sem exigir refrigeração',()=>{

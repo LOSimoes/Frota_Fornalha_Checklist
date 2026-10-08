@@ -30,8 +30,9 @@ test('acesso privado: configuração, sessão, limites, saída e persistência',
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); await removeTestDirectory(dir); });
   const base = `http://127.0.0.1:${server.address().port}`;
-  function call(url, { method = 'GET', password, cookie, token, requestOrigin = origin, host = '127.0.0.1:3000' } = {}) {
-    return fetch(base + url, { method, redirect: 'manual', headers: { Host: host, Origin: requestOrigin, ...(password !== undefined ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}), ...(token ? { 'X-Setup-Token': token } : {}) }, ...(password !== undefined ? { body: JSON.stringify({ password }) } : {}) });
+  function call(url, { method = 'GET', password, payload, cookie, token, requestOrigin = origin, host = '127.0.0.1:3000' } = {}) {
+    const value=payload || (password!==undefined?{password}:undefined);
+    return fetch(base + url, { method, redirect: 'manual', headers: { Host: host, Origin: requestOrigin, ...(value ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}), ...(token ? { 'X-Setup-Token': token } : {}) }, ...(value ? { body: JSON.stringify(value) } : {}) });
   }
   const password = 'Senha apenas de teste 2026!';
   let response = await call('/gestor'); assert.equal(response.status, 303); assert.equal(response.headers.get('location'), '/acesso');
@@ -46,6 +47,15 @@ test('acesso privado: configuração, sessão, limites, saída e persistência',
   const cookie = header.split(';')[0];
   const saved = await fs.readFile(path.join(dir, 'admin.json'), 'utf8'); assert.ok(!saved.includes(password)); assert.equal(JSON.parse(saved).hash.length, 128);
   assert.equal((await call('/gestor', { cookie })).status, 200);
+  assert.equal((await call('/api/inspections')).status,401);
+  const inspection={version:1,id:require('node:crypto').randomUUID(),inspectedAt:new Date(clock).toISOString(),driver:'Motorista de teste',vehicle:0,type:'Saída',km:35000,temperature:-9,answers:Object.fromEntries(['pneus','freios','luzes','oleo','motor','avarias','seguranca','frio'].map(id=>[id,'OK'])),notes:{},levels:{}};
+  assert.equal((await call('/api/inspections',{method:'POST',payload:inspection,requestOrigin:'https://outro-site.example'})).status,403);
+  assert.equal((await call('/api/inspections',{method:'POST',payload:inspection})).status,201);
+  assert.equal((await call('/api/inspections',{method:'POST',payload:inspection})).status,200);
+  const report=await (await call('/api/inspections',{cookie})).json();
+  assert.equal(report.total,1);assert.equal(report.withAlerts,1);assert.equal(report.exits,1);
+  assert.equal(report.records[0].temperature,-9);
+  assert.equal((await call('/data/frota.sqlite',{cookie})).status,404);
   assert.equal((await call('/api/setup', { method: 'POST', password, token: setupToken })).status, 403);
   assert.equal((await call('/api/logout', { method: 'POST', cookie, requestOrigin: 'https://outro-site.example' })).status, 403);
   assert.equal((await call('/api/logout', { method: 'POST', cookie })).status, 200);
@@ -59,6 +69,7 @@ test('acesso privado: configuração, sessão, limites, saída e persistência',
   clock += 8 * 60 * 60 * 1000 + 1;
   assert.equal((await call('/api/session', { cookie: freshCookie })).status, 401);
   const restarted = await createApplication({ dataDir: dir, origin }); assert.equal(restarted.setupToken, null);
+  assert.equal(restarted.store.list(report.day).total,1);restarted.store.close();
 });
 
 test('configuração expira e cookie recebe Secure em origem HTTPS', async t => {

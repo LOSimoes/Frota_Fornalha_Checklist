@@ -94,6 +94,8 @@ Status: levantamento iniciado em 07/10/2026 e atualizado em 08/10/2026. Requisit
 
 ## Critérios de aceite propostos
 
+Implementação de 08/10/2026: gravação SQLite, consulta autenticada por data, fila IndexedDB, reenvio idempotente e cache da página do motorista. Testes automatizados cobrem API, persistência e lógica de fila; verificação em Android real, fotos, cadastros definitivos e gestão da resolução das ocorrências ainda pendentes. A versão salva somente vistorias concluídas, sem persistência de rascunhos.
+
 - Motorista conclui saída e retorno pelo Android, inclusive sem rede após carregar o aplicativo inicialmente.
 - Fechar/reabrir o aplicativo preserva vistoria salva e fotos pendentes.
 - Reenvio não duplica vistoria; sucesso de envio só aparece após confirmação do servidor.

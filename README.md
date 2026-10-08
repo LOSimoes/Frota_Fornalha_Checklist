@@ -1,6 +1,6 @@
 # Frota Fornalha
 
-Modelo responsivo da vistoria e primeira etapa do servidor: acesso exclusivo do gestor.
+Checklist responsivo com fila local, armazenamento SQLite e painel exclusivo do gestor.
 
 ## Iniciar no Windows
 
@@ -30,7 +30,11 @@ O servidor inicia apenas no computador local. Para publicar na rede e permitir a
 - Motorista escolhe nome e veículo, sem senha e sem link para o painel administrativo.
 - Painel do gestor protegido no servidor, com criação de senha, login e saída.
 - Aviso de manutenção da refrigeração para temperatura maior ou igual a −13 °C.
-- **As vistorias ainda são demonstrativas:** não há envio, fotos reais, salvamento offline ou relatórios integrados. O painel informa essa condição e não apresenta números fictícios como dados reais.
+- Vistorias concluídas são gravadas primeiro no IndexedDB do aparelho e enviadas para `data/frota.sqlite`. O registro local só recebe o estado de enviado após confirmação do servidor. Reenvios com o mesmo identificador não duplicam a vistoria.
+- Ao abrir/retomar o aplicativo ou recuperar conexão, a fila tenta reenviar. O botão Sincronizar permite tentar manualmente. Erros de validação permanecem no aparelho e são sinalizados para revisão; não são apagados.
+- Após o primeiro carregamento online e instalação do service worker, a página de vistoria pode ser reaberta offline. Apenas os arquivos da vistoria são armazenados em cache; login, painel e API não são. O envio com aplicativo fechado não é garantido. Rascunhos não concluídos ainda não são salvos.
+- O gestor consulta por data (fuso de São Paulo), vê respostas, alertas e horários de vistoria e recebimento, e pode imprimir um relatório. A tela limita a listagem às 100 últimas vistorias do dia e informa quando há mais; contadores consideram todo o dia. Saídas e retornos contam veículos distintos.
+- **Cadastros ainda usam nomes de exemplo.** Fotos reais, edição dos cadastros, resolução de ocorrências e relatórios completos de manutenção serão implementados nas próximas etapas. Alertas ainda são apontamentos da vistoria, sem ciclo de resolução.
 - Recuperação de senha, serviço automático do Windows, backup e instalação nos celulares ainda serão definidos.
 
 ## Verificação
@@ -40,3 +44,12 @@ npm test
 ```
 
 Os testes verificam os eventos dos campos, fluxos das vans e Mobi, limites de temperatura e proteção HTTP do painel (sessões, origem, bloqueio de arquivos privados e limite de tentativas).
+
+Também verificam persistência após reabertura, consulta privada, validação no servidor, fila offline, erro de armazenamento e confirmação sem duplicação. A simulação da fila usa um adaptador em memória; ainda é necessário validar IndexedDB e abertura offline em Android real.
+
+## Testar o percurso completo
+
+1. Abra a raiz do servidor e conclua uma vistoria com os cadastros de exemplo.
+2. Aguarde “Vistoria recebida” (ou confira o estado de espera quando estiver sem conexão).
+3. Entre em `/gestor`, selecione a data e use Atualizar para consultar o registro.
+4. Para preservar os dados em um backup manual, encerre o servidor e copie a pasta `data` inteira para armazenamento protegido. Ainda falta automatizar e testar a restauração do backup na instalação definitiva.
