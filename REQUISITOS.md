@@ -24,7 +24,7 @@ Status: levantamento iniciado em 07/10/2026 e atualizado em 08/10/2026. Requisit
 - Painel com prioridade para batidas/avarias, segurança e manutenção.
 - Servidor Windows disponível; arquitetura e forma de acesso externo serão definidas conjuntamente. Repositório GitHub para código.
 - Layout responsivo único para computador e Android: campos legíveis, ações em posições fixas, conteúdo sem rolagem horizontal. No celular, exibir a etapa atual em lugar da lista completa e priorizar os campos sobre textos de apresentação.
-- Próxima etapa, após revisão do layout: acesso separado ao painel do gestor, protegido por senha e exclusivo de Lucas. A entrada do gestor não deverá aparecer na tela dos motoristas. A demonstração atual ainda contém alternância pública de áreas e não implementa autenticação.
+- Acesso separado ao painel do gestor, protegido por senha e exclusivo de Lucas. A entrada do gestor não aparece na tela dos motoristas. Implementado em 08/10/2026 no servidor Node: configuração inicial de senha, login, sessão de oito horas e saída. Ainda depende de Lucas criar a senha e da configuração de hospedagem/HTTPS para acesso pelos celulares.
 
 ## Fluxo proposto
 
@@ -89,7 +89,7 @@ Status: levantamento iniciado em 07/10/2026 e atualizado em 08/10/2026. Requisit
 - Fotos vinculadas ao registro e enviadas com tentativa posterior sem perder a vistoria.
 - Preservar registros enviados; correções com histórico e motivo.
 - Checklist versionado: mudanças futuras não alteram respostas antigas.
-- Proteger o painel administrativo; acesso simplificado de motoristas não deve permitir ler toda a frota ou resolver ocorrências. Forma de proteção ainda a definir.
+- Proteger o painel administrativo no servidor; acesso simplificado de motoristas não deve permitir ler toda a frota ou resolver ocorrências. Autenticação por senha implementada; futuros endpoints de dados e resolução de ocorrências deverão exigir a mesma sessão e validação de origem.
 - HTTPS para uso externo, armazenamento de registros/fotos e backups com teste de restauração. Banco e hospedagem pendentes; GitHub não armazenará dados operacionais.
 
 ## Critérios de aceite propostos
