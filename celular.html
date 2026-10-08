@@ -1,37 +1,26 @@
 <!doctype html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Fornalha · Prévia no celular</title>
-  <style>
-    *{box-sizing:border-box}body{margin:0;background:#e8ede7;color:#20352e;font-family:Segoe UI,Arial,sans-serif}main{max-width:1000px;margin:auto;padding:32px 20px;display:flex;align-items:flex-start;justify-content:center;gap:52px}.intro{max-width:340px;padding-top:28px}small{letter-spacing:2px;font-weight:700;color:#51705c}h1{font-size:34px;line-height:1.15;letter-spacing:-1px}p{line-height:1.6;color:#54645a}label{display:block;font-weight:600;margin:24px 0 8px}select,a{font:inherit}select{padding:12px;border-radius:10px;border:1px solid #a7b7a9;background:white;max-width:100%}a{color:#215f46;display:inline-block;margin-top:20px}.device{width:414px;flex:none;background:#17241d;border-radius:38px;padding:12px;box-shadow:0 20px 55px #15321f25}.screen{height:844px;overflow:hidden;border-radius:27px;background:#f3f5f1}iframe{display:block;border:0;width:100%;height:100%;background:#f3f5f1}.caption{text-align:center;color:#cbd6cc;font-size:11px;padding:10px 0 2px;margin:0}@media(max-width:800px){main{flex-direction:column;align-items:center;gap:20px;padding:20px 10px}.intro{padding:0;max-width:440px}h1{font-size:26px;margin:12px 0}.device{max-width:100%}.screen{height:75vh;min-height:500px}}select:focus-visible,a:focus-visible{outline:3px solid #c48024;outline-offset:3px}
-  </style>
-</head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fornalha · Prévia no celular</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;height:100%;font-family:Segoe UI,Arial,sans-serif;color:#20352e;background:#e8ede7}
+body{height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+.toolbar{flex:none;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px 16px;padding:10px 12px;background:white;border-bottom:1px solid #ccd8cd;font-size:13px}
+.toolbar strong{font-size:14px}.toolbar label{display:flex;align-items:center;gap:8px}select{font:inherit;padding:8px;border:1px solid #b1c2b4;border-radius:8px;background:white;min-height:40px}a{color:#215f46}select:focus-visible,a:focus-visible{outline:3px solid #c48024;outline-offset:2px}
+main{flex:1;min-height:0;display:flex;justify-content:center;padding:12px}
+.device{width:400px;max-width:100%;height:100%;min-height:0;overflow:hidden;border:5px solid #203b2b;border-radius:22px;background:#f3f5f1;box-shadow:0 6px 24px #15321f20}
+iframe{display:block;width:100%;height:100%;border:0}
+.hint{flex:none;margin:0;text-align:center;padding:0 10px 8px;font-size:11px;color:#566b5c}
+@media(max-width:480px){.toolbar{gap:6px 10px;padding:6px 8px}.toolbar strong{display:none}.toolbar label{font-size:12px}select{padding:6px}.toolbar a{font-size:12px}main{padding:0}.device{border:0;border-radius:0;max-width:100%}.hint{display:none}}
+</style></head>
 <body>
-<main>
-  <section class="intro">
-    <small>FORNALHA · PRÉVIA INTERATIVA</small>
-    <h1>O checklist na palma da mão.</h1>
-    <p>Teste o mesmo aplicativo em uma tela estreita. Preencha os campos, avance e experimente o painel do gestor.</p>
-    <p>Os botões <strong>Voltar</strong> e <strong>Continuar</strong> ficam no rodapé. A página rola dentro do celular.</p>
-    <label for="size">Tamanho da tela</label>
-    <select id="size" onchange="resizePreview(this.value)">
-      <option value="390,844">Celular médio · 390 × 844</option>
-      <option value="360,740">Celular compacto · 360 × 740</option>
-      <option value="412,915">Celular grande · 412 × 915</option>
-    </select>
-    <p>Na refrigeração, experimente <strong>−13 °C ou −9 °C</strong>: os dois valores mostram o aviso de manutenção.</p>
-    <p><small>Modelo sem salvamento de dados. Esta prévia simula o tamanho da tela; câmera, teclado e instalação precisam ser testados no Android.</small></p>
-    <a href="index.html" target="_blank" rel="noopener">Abrir aplicativo em tela inteira ↗</a>
-  </section>
-  <section class="device" id="device" aria-label="Prévia do celular">
-    <div class="screen" id="screen"><iframe src="index.html" title="Checklist da frota em tamanho de celular"></iframe></div>
-    <p class="caption">FORNALHA · MODELO INTERATIVO</p>
-  </section>
-</main>
+<header class="toolbar"><strong>Prévia no celular</strong><label for="size">Largura <select id="size" onchange="resizePreview(this.value)"><option value="390">Médio · 390 px</option><option value="360">Compacto · 360 px</option><option value="412">Grande · 412 px</option></select></label><a href="index.html" target="_blank" rel="noopener">Abrir em tela inteira ↗</a></header>
+<main><section class="device" id="device" aria-label="Prévia do celular"><iframe src="index.html" title="Checklist da frota em tamanho de celular"></iframe></section></main>
+<p class="hint">Altura ajustada à janela · Role somente o aplicativo · Modelo sem salvamento</p>
 <script>
-function resizePreview(value){const [width,height]=value.split(',').map(Number);document.getElementById('device').style.width=(width+24)+'px';document.getElementById('screen').style.height=height+'px';}
+function resizePreview(value){const device=document.getElementById('device');const border=parseFloat(getComputedStyle(device).borderLeftWidth)||0;device.style.width=(Number(value)+border*2)+'px';}
+window.addEventListener('resize',()=>resizePreview(document.getElementById('size').value));
+resizePreview(document.getElementById('size').value);
 </script>
-</body>
-</html>
+</body></html>

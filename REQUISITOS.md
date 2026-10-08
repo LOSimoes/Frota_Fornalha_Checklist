@@ -23,6 +23,8 @@ Status: levantamento iniciado em 07/10/2026 e atualizado em 08/10/2026. Requisit
 - Preenchimento offline e sincronização posterior por Wi-Fi ou rede móvel.
 - Painel com prioridade para batidas/avarias, segurança e manutenção.
 - Servidor Windows disponível; arquitetura e forma de acesso externo serão definidas conjuntamente. Repositório GitHub para código.
+- Layout responsivo único para computador e Android: campos legíveis, ações em posições fixas, conteúdo sem rolagem horizontal. No celular, exibir a etapa atual em lugar da lista completa e priorizar os campos sobre textos de apresentação.
+- Próxima etapa, após revisão do layout: acesso separado ao painel do gestor, protegido por senha e exclusivo de Lucas. A entrada do gestor não deverá aparecer na tela dos motoristas. A demonstração atual ainda contém alternância pública de áreas e não implementa autenticação.
 
 ## Fluxo proposto
 
