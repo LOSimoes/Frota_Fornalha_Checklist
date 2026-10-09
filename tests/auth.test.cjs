@@ -48,6 +48,8 @@ test('acesso privado: configuração, sessão, limites, saída e persistência',
   const saved = await fs.readFile(path.join(dir, 'admin.json'), 'utf8'); assert.ok(!saved.includes(password)); assert.equal(JSON.parse(saved).hash.length, 128);
   assert.equal((await call('/gestor', { cookie })).status, 200);
   assert.equal((await call('/api/inspections')).status,401);
+  assert.equal((await call('/api/mileage?vehicle=0')).status,401);
+  assert.equal((await call('/api/mileage?vehicle=abc',{cookie})).status,400);
   assert.equal((await call('/api/photos/exemplo')).status,401);
   assert.equal((await call('/api/photos/exemplo',{cookie})).status,404);
   assert.equal((await call('/api/catalog/admin')).status,401);
@@ -63,6 +65,7 @@ test('acesso privado: configuração, sessão, limites, saída e persistência',
   const report=await (await call('/api/inspections',{cookie})).json();
   assert.equal(report.total,1);assert.equal(report.withAlerts,1);assert.equal(report.exits,1);
   assert.equal(report.records[0].temperature,-9);
+  const mileage=await(await call('/api/mileage?vehicle=0',{cookie})).json();assert.equal(mileage.readings[0].km,35000);assert.equal(mileage.vehicle.lastReading.km,35000);
   const photoResponse=await call('/api/photos/'+inspection.photos[0].id,{cookie});assert.equal(photoResponse.status,200);assert.equal(photoResponse.headers.get('content-type'),'image/jpeg');assert.deepEqual(Buffer.from(await photoResponse.arrayBuffer()),photoBytes);
   assert.equal((await call('/api/photos/'+inspection.photos[0].id)).status,401);
   const filtered=await(await call('/api/inspections?vehicle=1',{cookie})).json();assert.equal(filtered.total,0);

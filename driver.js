@@ -12,7 +12,7 @@ async function sendInspection(payload){
   const result=await response.json();
   if(!response.ok){const error=new Error(result.message || 'Não foi possível enviar.');error.permanent=[400,409,413,415].includes(response.status);throw error;}
   if(result.id===payload.id&&result.receivedAt&&Object.hasOwn(result,'trip')){
-    try{const c=JSON.parse(localStorage.getItem('fornalha-catalog'));const d=c?.drivers.find(d=>d.id===payload.driverId);if(d){d.trip=result.trip;localStorage.setItem('fornalha-catalog',JSON.stringify(c));}}catch{}
+    try{const c=JSON.parse(localStorage.getItem('fornalha-catalog'));const d=c?.drivers.find(d=>d.id===payload.driverId);if(d)d.trip=result.trip;if(c){FornalhaMileage.merge(c.vehicles.find(v=>v.id===payload.vehicle),{...payload,receivedAt:result.receivedAt});localStorage.setItem('fornalha-catalog',JSON.stringify(c));}}catch{}
   }
   return result;
 }
@@ -35,14 +35,14 @@ async function completeInspection(){
     if(photoBusy)throw new Error('Aguarde o processamento das fotos antes de concluir.');
     if(!outbox)throw new Error('Armazenamento indisponível. Não feche esta página; tente novamente.');
     if(!submission){await refreshTripState(false);const issue=tripMessage();if(issue)throw new Error(issue);}
-    if(!submission)submission={version:2,id:crypto.randomUUID(),inspectedAt:new Date().toISOString(),driver:inspectionState.name,driverId:inspectionState.driverId||drivers.find(d=>d.name===inspectionState.name)?.id,vehicle:Number(inspectionState.vehicle),vehicleName:vehicles[inspectionState.vehicle],refrigerated:refrigerated(),type:inspectionState.type,km:Number(inspectionState.km),temperature:refrigerated()?Number(inspectionState.temp):null,answers:{...answers},notes:{...notes},levels:{...levels}};
+    if(!submission)submission={version:2,id:crypto.randomUUID(),inspectedAt:new Date().toISOString(),driver:inspectionState.name,driverId:inspectionState.driverId||drivers.find(d=>d.name===inspectionState.name)?.id,vehicle:Number(inspectionState.vehicle),vehicleName:vehicles[inspectionState.vehicle],refrigerated:refrigerated(),type:inspectionState.type,km:Number(inspectionState.km),kmNote:inspectionState.kmNote||'',temperature:refrigerated()?Number(inspectionState.temp):null,answers:{...answers},notes:{...notes},levels:{...levels}};
     if(!submission.photos)submission.photos=inspectionPhotos.filter(p=>answers[p.item]==='Problema').map(p=>({...p}));
     const row=await outbox.enqueue(submission);showReceipt(row);window.scrollTo(0,0);
     await outbox.sync();
   }catch(error){showModal('Não foi possível concluir',error.message);}
   finally{finishing=false;}
 }
-async function newInspection(){submission=null;inspectionPhotos=[];step=0;inspectionState={...inspectionState,km:'',temp:''};answers={};notes={};levels={};await loadCatalog();selectTrip();render();window.scrollTo(0,0);}
+async function newInspection(){submission=null;inspectionPhotos=[];step=0;inspectionState={...inspectionState,km:'',kmNote:'',temp:''};kmEdited=false;kmAutoKey='';answers={};notes={};levels={};await loadCatalog();selectTrip();suggestMileage(true);render();window.scrollTo(0,0);}
 async function syncInspections(){if(outbox)try{await outbox.sync();await loadCatalog();}catch{document.getElementById('queueStatus').textContent='Não foi possível acessar os registros locais. Tente novamente.';}}
 (async()=>{
   try{
@@ -58,14 +58,14 @@ async function loadCatalog(force=false){
   catch{try{catalog=JSON.parse(localStorage.getItem('fornalha-catalog'));}catch{}}
   if(!catalog||!Array.isArray(catalog.vehicles)||!Array.isArray(catalog.drivers))return;
   tripControl=catalog.tripRules===true;
-  if(outbox){const rows=(await outbox.all()).filter(r=>r.status==='pending').sort((a,b)=>Date.parse(a.payload.inspectedAt)-Date.parse(b.payload.inspectedAt));for(const row of rows){const d=catalog.drivers.find(d=>d.id===row.payload.driverId);if(!d||d.trip?.lastId===row.id||d.trip?.pending?.id===row.id)continue;if(d.trip?.lastAt&&Date.parse(row.payload.inspectedAt)<Date.parse(d.trip.lastAt))continue;if(!FornalhaTrips.error(d.trip,row.payload))d.trip=FornalhaTrips.advance(d.trip,row.payload);}}
+  if(outbox){const rows=(await outbox.all()).filter(r=>r.status==='pending'||r.status==='sent').sort((a,b)=>Date.parse(a.payload.inspectedAt)-Date.parse(b.payload.inspectedAt)||(a.sequence||0)-(b.sequence||0));for(const row of rows){FornalhaMileage.merge(catalog.vehicles.find(v=>v.id===row.payload.vehicle),{...row.payload,receivedAt:row.receivedAt});if(row.status!=='pending')continue;const d=catalog.drivers.find(d=>d.id===row.payload.driverId);if(!d||d.trip?.lastId===row.id||d.trip?.pending?.id===row.id)continue;if(d.trip?.lastAt&&Date.parse(row.payload.inspectedAt)<Date.parse(d.trip.lastAt))continue;if(!FornalhaTrips.error(d.trip,row.payload))d.trip=FornalhaTrips.advance(d.trip,row.payload);}}
   fleet=catalog.vehicles;drivers=catalog.drivers;vehicles=[];fleet.forEach(v=>vehicles[v.id]=v.name);
   if(step===0&&!fleet.some(v=>v.id===Number(inspectionState.vehicle)))inspectionState.vehicle=fleet[0]?.id??-1;
   const current=drivers.find(d=>d.id===inspectionState.driverId||d.name===inspectionState.name);
   inspectionState.name=current?.name||'';inspectionState.driverId=current?.id;
-  if(step===0&&!submission)render();
+  if(step===0&&!submission){suggestMileage();render();}
 }
-async function refreshTripState(autoSelect=true){await loadCatalog(true);if(autoSelect&&step===0&&!submission){selectTrip();render();}}
+async function refreshTripState(autoSelect=true){await loadCatalog(true);if(autoSelect&&step===0&&!submission){selectTrip();suggestMileage();render();}}
 loadCatalog();
 window.addEventListener('online',()=>loadCatalog());
 if('serviceWorker' in navigator&&['http:','https:'].includes(location.protocol))navigator.serviceWorker.register('/sw.js').catch(()=>{document.getElementById('queueStatus').textContent+=' A abertura offline ainda não está disponível.';});

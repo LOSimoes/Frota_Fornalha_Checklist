@@ -2,6 +2,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 const tripRules = require('./trip-rules.js');
+const mileage = require('./mileage.js');
 const vehicles = ['Master curta 01','Master curta 02','Master longa · 2018','Ducato · 2025','Mobi vendedor 01','Mobi vendedor 02'];
 const items = { pneus:'Pneus e rodas', freios:'Freios e direção', luzes:'Luzes e visibilidade', oleo:'Nível de óleo', motor:'Motor e painel', avarias:'Carroceria e portas', seguranca:'Cintos e equipamentos', frio:'Refrigeração' };
 const dateKey = time => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date(time));
@@ -26,6 +27,7 @@ function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,
   if (!Number.isInteger(value.vehicle) || !vehicle) invalid('Veículo inválido.');
   if (!['Saída','Retorno'].includes(value.type)) invalid('Tipo de vistoria inválido.');
   if (!Number.isSafeInteger(value.km) || value.km < 0) invalid('Quilometragem inválida.');
+  if(value.kmNote!==undefined&&(typeof value.kmNote!=='string'||value.kmNote.length>500))invalid('Use até 500 caracteres na observação da quilometragem.');
   if (typeof value.inspectedAt !== 'string' || !Number.isFinite(Date.parse(value.inspectedAt)) || Date.parse(value.inspectedAt) > now + 300000) invalid('Data da vistoria inválida. Confira o relógio do aparelho.');
   const refrigerated = value.version===1 ? value.vehicle<4 : typeof value.refrigerated==='boolean' ? value.refrigerated : !!vehicle.refrigerated;
   if (refrigerated && (typeof value.temperature !== 'number' || !Number.isFinite(value.temperature))) invalid('Temperatura inválida.');
@@ -44,7 +46,7 @@ function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,
     } else if (answer === 'Não verifiquei') alerts.push({ item:items[id], kind:'Não verificado',note:'Avaliar o item não verificado.' });
   }
   if (refrigerated && value.temperature >= -13) alerts.push({item:'Temperatura',kind:'Manutenção',note:`${value.temperature} °C — avaliar manutenção em breve.`});
-  return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),vehicle:value.vehicle,type:value.type,km:value.km,inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:refrigerated?value.temperature:null,answers,notes,levels,alerts,...(value.version===2?{driverId:value.driverId,refrigerated,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name}:{})};
+  return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),vehicle:value.vehicle,type:value.type,km:value.km,...(value.kmNote?.trim()?{kmNote:value.kmNote.trim()}:{}),inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:refrigerated?value.temperature:null,answers,notes,levels,alerts,...(value.version===2?{driverId:value.driverId,refrigerated,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name}:{})};
 }
 function openStore(dir) {
   const db = new DatabaseSync(path.join(dir, 'frota.sqlite'));
@@ -60,9 +62,10 @@ function openStore(dir) {
   db.exec('CREATE TABLE IF NOT EXISTS driver_aliases(name TEXT PRIMARY KEY, driver_id INTEGER NOT NULL); INSERT OR IGNORE INTO driver_aliases SELECT name,id FROM drivers');
   const fleet=()=>db.prepare('SELECT * FROM vehicles ORDER BY id').all().map(v=>({...v,active:!!v.active,refrigerated:!!v.refrigerated}));
   const driverKey=r=>{const id=r.driverId??db.prepare('SELECT driver_id FROM driver_aliases WHERE name=?').get(r.driver)?.driver_id;return id?`id:${id}`:`name:${r.driver}`;};
-  const tripState=key=>JSON.parse(db.prepare('SELECT state FROM trip_state WHERE driver_key=?').get(key)?.state||'null');
+  const tripState=key=>{const s=JSON.parse(db.prepare('SELECT state FROM trip_state WHERE driver_key=?').get(key)?.state||'null');if(s?.pending&&s.pending.km===undefined){const r=db.prepare('SELECT payload FROM inspections WHERE id=?').get(s.pending.id);if(r)s.pending.km=JSON.parse(r.payload).km;}return s;};
   function catalog(all=false){
-    const vs=fleet(),history=db.prepare('SELECT payload FROM inspections ORDER BY json_extract(payload,\'$.inspectedAt\') DESC,id DESC').all().map(r=>JSON.parse(r.payload));
+    const vs=fleet(),history=db.prepare('SELECT payload,received_at FROM inspections ORDER BY json_extract(payload,\'$.inspectedAt\') DESC,received_at DESC,id DESC').all().map(r=>({...JSON.parse(r.payload),receivedAt:r.received_at}));
+    for(const r of [...history].reverse())mileage.merge(vs.find(v=>v.id===r.vehicle),r);
     const drivers=db.prepare('SELECT * FROM drivers ORDER BY id').all().map(d=>{
       const aliases=db.prepare('SELECT name FROM driver_aliases WHERE driver_id=?').all(d.id).map(a=>a.name);
       const recent=history.filter(r=>r.driverId===d.id || (!r.driverId&&aliases.includes(r.driver))).filter(r=>vs.some(v=>v.id===r.vehicle&&v.active)).slice(0,30);
@@ -95,6 +98,13 @@ function openStore(dir) {
   }
   return {
     catalog,saveCatalog,
+    mileage(vehicleId){
+      const vehicle=fleet().find(v=>v.id===vehicleId);if(!vehicle)invalid('Selecione um veículo cadastrado.');
+      const records=db.prepare('SELECT payload,received_at FROM inspections WHERE json_extract(payload,\'$.vehicle\')=? ORDER BY json_extract(payload,\'$.inspectedAt\'),received_at,id').all(vehicleId).map(r=>({...JSON.parse(r.payload),receivedAt:r.received_at}));
+      let previousReturn=null;
+      const readings=records.map(r=>{const row={id:r.id,km:r.km,type:r.type,driver:r.driver,inspectedAt:r.inspectedAt,receivedAt:r.receivedAt,kmNote:r.kmNote||'',gapSinceReturn:r.type==='Saída'&&previousReturn?r.km-previousReturn.km:null};if(r.type==='Retorno')previousReturn=r;mileage.merge(vehicle,r);return row;});
+      return {vehicle,readings:readings.reverse()};
+    },
     photo(id){return db.prepare('SELECT data FROM photos WHERE id=?').get(id);},
     save(raw, now = Date.now()) {
       if(raw?.version===2&&(!Number.isInteger(raw.driverId)||!db.prepare('SELECT id FROM drivers WHERE id=?').get(raw.driverId)))invalid('Motorista não encontrado. Atualize os cadastros.');

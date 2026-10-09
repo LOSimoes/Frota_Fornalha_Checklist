@@ -67,3 +67,12 @@ Também verificam persistência após reabertura, consulta privada, validação 
 Marca e ícone originais Fornalha, paleta corporativa e regra por motorista: uma nova saída exige encerrar o retorno pendente do mesmo veículo. O bloqueio é validado no servidor, persiste entre dias e reinícios, e a fila offline envia na ordem cronológica. Histórico anterior à atualização não gera pendências retroativas. Cadastros inativos com viagem aberta ficam disponíveis apenas para encerrar o retorno.
 
 Consulte [ATUALIZACAO_BETA_0.4.md](ATUALIZACAO_BETA_0.4.md) para atualizar preservando dados e recuperar os cadastros sem copiar senha ou banco de desenvolvimento. A IA e os avisos por e-mail ficam para a próxima etapa; ainda não há envio automático.
+
+
+## Beta 0.5 — quilometragem por veículo
+
+Na saída, sugere o último retorno do veículo (ou última leitura, se não houver retorno), sempre editável. No retorno, mostra a leitura de saída e exige informar o fechamento. Trocar veículo recalcula a sugestão; atualizar o catálogo não sobrescreve uma correção manual. A referência usa a data da vistoria, não a ordem de sincronização. Leituras conhecidas no aparelho também alimentam a sugestão offline.
+
+O gestor vê as últimas leituras e retornos, com histórico por veículo em endpoint autenticado, sem precisar definir período do relatório. Diferença entre retorno anterior e próxima saída não é atribuída ao novo motorista. Valores menores geram aviso na tela, sem bloqueio, e há observação opcional de até 500 caracteres. A leitura informada permanece no histórico. Média diária, distância por motorista e manutenção automática continuam para etapa futura.
+
+Atualização: [ATUALIZACAO_BETA_0.5.md](ATUALIZACAO_BETA_0.5.md). Não é necessário reimportar os cadastros já recuperados.

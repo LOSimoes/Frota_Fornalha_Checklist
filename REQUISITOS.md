@@ -134,3 +134,14 @@ Esta proposta operacional não representa certificação de conformidade com tod
 - Cada motorista começa com saída. Enquanto existir saída pendente, exigir retorno do mesmo veículo antes de qualquer nova saída; a virada de dia não elimina a pendência.
 - Preservar e recuperar cadastros existentes. Não substituir banco operacional ao atualizar código.
 - Futuro agente: monitorar novas vistorias recebidas e enviar e-mail aos destinatários cadastrados ao identificar ocorrência importante, manutenção ou avaria nova, evitando repetir avisos sobre a mesma pendência. Configuração da IA adiada pelo usuário até concluir os ajustes. Provedor de e-mail, remetente e destinatários ainda pendentes.
+
+
+## Quilometragem — confirmação de 09/10/2026
+
+- Preencher saída com o último retorno do veículo, independentemente de qual motorista registrou. Permitir editar livremente.
+- Se não houver retorno, informar claramente que a sugestão usa a última leitura; sem histórico, deixar em branco.
+- No retorno, mostrar a quilometragem da partida como referência e deixar o fechamento para digitação.
+- Guardar leituras por vistoria, veículo, motorista e data; mostrar último retorno e última leitura diretamente no gestor.
+- Mostrar diferença entre último retorno e nova saída sem inferir autoria ou uso indevido. Leitura menor é um aviso, não um bloqueio. Observação opcional ajuda a explicar correções.
+- Uso offline pode estar desatualizado em relação a outro aparelho. Dados recebidos fora de ordem devem respeitar a data efetiva da vistoria.
+- Futuro: distância por saída/retorno pareados, média por dia/veículo/motorista e manutenção por quilometragem. Não calcular distância do novo motorista usando o retorno de outra pessoa.

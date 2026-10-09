@@ -8,7 +8,7 @@
     return '';
   }
   function advance(state, record){
-    return {lastId:record.id,lastAt:record.inspectedAt,pending:record.type==='Saída'?{id:record.id,vehicle:Number(record.vehicle),vehicleName:record.vehicleName,inspectedAt:record.inspectedAt}:null};
+    return {lastId:record.id,lastAt:record.inspectedAt,pending:record.type==='Saída'?{id:record.id,vehicle:Number(record.vehicle),vehicleName:record.vehicleName,inspectedAt:record.inspectedAt,km:record.km}:null};
   }
   const api={error,advance};
   if(typeof module!=='undefined')module.exports=api;else root.FornalhaTrips=api;

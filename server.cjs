@@ -115,6 +115,11 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         } finally { busy = false; }
       }
       if (req.method !== 'GET') return json(res, 405, { message: 'Método não permitido.' });
+      if(url.pathname==='/api/mileage'){
+        if(!session(req))return json(res,401,{message:'Entre no painel para consultar a quilometragem.'});
+        const id=url.searchParams.get('vehicle');if(id===null||!/^\d+$/.test(id))return json(res,400,{message:'Veículo inválido.'});
+        return json(res,200,store.mileage(Number(id)));
+      }
       if (url.pathname === '/api/inspections') {
         if (!session(req)) return json(res, 401, { message:'Entre no painel para consultar as vistorias.' });
         const start=url.searchParams.get('start')||url.searchParams.get('date')||dateKey(now());
@@ -139,6 +144,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         return await serve(res, url.pathname==='/cadastros'?'pages/cadastros.html':'pages/gestor.html');
       }
       const routes = {
+        '/mileage.js':['mileage.js','text/javascript; charset=utf-8'],
         '/trip-rules.js':['trip-rules.js','text/javascript; charset=utf-8'],
         '/brand.css':['brand.css','text/css; charset=utf-8'],
         '/assets/logo.png':['assets/logo.png','image/png'],

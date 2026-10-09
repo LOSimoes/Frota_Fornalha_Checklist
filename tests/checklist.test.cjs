@@ -8,6 +8,8 @@ const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
 function app(){
   const nodes={};
   const context=vm.createContext({document:{getElementById(id){return nodes[id]??={classList:{toggle(){}},showModal(){this.open=true;}}}},window:{scrollTo(){}},completeInspection(){nodes.completed=true;}});
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../mileage.js'),'utf8'),context);
+  context.FornalhaMileage=context.window.FornalhaMileage;
   vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../trip-rules.js'),'utf8'),context);
   context.FornalhaTrips=context.window.FornalhaTrips;
@@ -93,5 +95,22 @@ test('identificação sugere retorno pendente e informa o carro ao bloquear nova
  assert.match(a.nodes.app.innerHTML,/Retorno pendente/);
  a.input('Quilometragem atual','100');a.input('Vistoria','Saída');a.run('next()');assert.equal(a.run('step'),0);assert.match(a.nodes.message.textContent,/Master longa 1801/);
  a.input('Vistoria','Retorno');a.input('Veículo','1');a.run('next()');assert.equal(a.run('step'),0);
- a.input('Veículo','2');a.run('next()');assert.equal(a.run('step'),1);
+ a.input('Veículo','2');a.input('Quilometragem atual','100');a.run('next()');assert.equal(a.run('step'),1);
+});
+
+test('saída sugere último retorno por veículo e não sobrescreve correção manual em atualização',()=>{
+ const a=app();a.run("fleet[0].lastReturn={id:'r1',km:150,inspectedAt:'2026-10-08T18:00:00Z'};fleet[1].lastReturn={id:'r2',km:300,inspectedAt:'2026-10-08T18:00:00Z'}");
+ a.input('Seu nome','Motorista 01 · exemplo');assert.equal(a.run('inspectionState.km'),'150');
+ a.input('Quilometragem atual','170');a.run("fleet[0].lastReturn.km=160;suggestMileage();render()");assert.equal(a.run('inspectionState.km'),'170');
+ assert.match(a.nodes.app.innerHTML,/Diferença antes desta saída/);
+ a.input('Veículo','1');assert.equal(a.run('inspectionState.km'),'300');
+ a.input('Vistoria','Retorno');assert.equal(a.run('inspectionState.km'),'');
+ a.input('Vistoria','Saída');assert.equal(a.run('inspectionState.km'),'300');
+ a.input('Veículo','4');assert.equal(a.run('inspectionState.km'),'');
+});
+
+test('quilometragem zero é sugerida e retorno mostra partida sem preencher o fechamento',()=>{
+ const a=app();a.run("fleet[0].lastReturn={km:0,inspectedAt:'2026-10-08T18:00:00Z'}");a.input('Seu nome','Motorista 01 · exemplo');assert.equal(a.run('inspectionState.km'),'0');
+ a.run("tripControl=true;drivers[0].trip={pending:{vehicle:0,vehicleName:'Master',km:100}};");a.input('Seu nome','Motorista 01 · exemplo');assert.equal(a.run('inspectionState.type'),'Retorno');assert.equal(a.run('inspectionState.km'),'');assert.match(a.nodes.app.innerHTML,/100 km/);
+ a.input('Quilometragem atual','90');assert.match(a.nodes.mileageHint.innerHTML,/abaixo da referência/);a.run('next()');assert.equal(a.run('step'),1);
 });
