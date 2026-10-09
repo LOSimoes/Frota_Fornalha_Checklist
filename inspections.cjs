@@ -60,15 +60,64 @@ function openStore(dir) {
   if(!db.prepare('SELECT COUNT(*) AS n FROM vehicles').get().n) vehicles.forEach((name,id)=>db.prepare('INSERT INTO vehicles(id,name,refrigerated) VALUES(?,?,?)').run(id,name,id<4?1:0));
   if(!db.prepare('SELECT COUNT(*) AS n FROM drivers').get().n) ['Motorista 01 · exemplo','Motorista 02 · exemplo','Motorista 03 · exemplo','Vendedor 01 · exemplo','Vendedor 02 · exemplo'].forEach(name=>db.prepare('INSERT INTO drivers(name) VALUES(?)').run(name));
   db.exec('CREATE TABLE IF NOT EXISTS driver_aliases(name TEXT PRIMARY KEY, driver_id INTEGER NOT NULL); INSERT OR IGNORE INTO driver_aliases SELECT name,id FROM drivers');
+  db.exec('CREATE TABLE IF NOT EXISTS adjustments(seq INTEGER PRIMARY KEY, inspection_id TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS occurrence_updates(seq INTEGER PRIMARY KEY, inspection_id TEXT NOT NULL, item TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL)');
+  db.exec('CREATE INDEX IF NOT EXISTS adjustments_inspection ON adjustments(inspection_id,seq); CREATE INDEX IF NOT EXISTS occurrence_inspection ON occurrence_updates(inspection_id,item,seq)');
+  function effective(row){
+    const r={...JSON.parse(row.payload),receivedAt:row.received_at};
+    r.corrections=db.prepare('SELECT created_at,payload FROM adjustments WHERE inspection_id=? ORDER BY seq').all(r.id).map(a=>({...JSON.parse(a.payload),at:a.created_at}));
+    for(const a of r.corrections)Object.assign(r,a.changes);
+    return r;
+  }
+  function history(){return db.prepare('SELECT payload,received_at FROM inspections ORDER BY json_extract(payload,\'$.inspectedAt\'),received_at,id').all().map(effective).filter(r=>!r.cancelled);}
+  function correct(p,now=Date.now()){
+    if(!p||typeof p.reason!=='string'||!p.reason.trim()||p.reason.length>1000)invalid('Informe a justificativa (até 1.000 caracteres).');
+    const row=db.prepare('SELECT payload,received_at FROM inspections WHERE id=?').get(p.id);if(!row)invalid('Vistoria não encontrada.');
+    const r=effective(row);if(r.cancelled)invalid('Esta vistoria já foi cancelada.');
+    if(p.revision!==r.corrections.length)invalid('O registro foi alterado. Atualize o relatório antes de corrigir.');
+    const changes={},key=driverKey(r),state=tripState(key),pending=state?.pending?.id===r.id;
+    if(p.action==='km'){
+      if(!Number.isSafeInteger(p.km)||p.km<0)invalid('Informe uma quilometragem inteira e não negativa.');
+      changes.km=p.km;
+    }else if(p.action==='vehicle'){
+      if(!pending)invalid('Só é possível trocar o veículo de uma saída ainda pendente.');
+      const v=fleet().find(v=>v.id===p.vehicle&&v.active);if(!v)invalid('Selecione um veículo ativo.');
+      if(v.refrigerated!==(r.refrigerated??r.vehicle<4))invalid('O veículo deve ter o mesmo tipo de refrigeração da vistoria original. Cancele o lançamento incorreto e faça a vistoria adequada.');
+      changes.vehicle=v.id;changes.vehicleName=v.name;
+    }else if(p.action==='cancel'){
+      if(!pending)invalid('Só é possível cancelar uma saída ainda pendente.');
+      changes.cancelled=true;
+    }else invalid('Ação inválida.');
+    const entry={actor:'Gestor',reason:p.reason.trim(),changes,before:Object.fromEntries(Object.keys(changes).map(k=>[k,r[k]??null]))};
+    db.exec('BEGIN IMMEDIATE');
+    try{
+      db.prepare('INSERT INTO adjustments(inspection_id,created_at,payload) VALUES(?,?,?)').run(r.id,new Date(now).toISOString(),JSON.stringify(entry));
+      if(pending){
+        if(changes.cancelled)state.pending=null;
+        else Object.assign(state.pending,changes);
+        db.prepare('UPDATE trip_state SET state=? WHERE driver_key=?').run(JSON.stringify(state),key);
+      }
+      db.exec('COMMIT');
+    }catch(e){db.exec('ROLLBACK');throw e;}
+    return {ok:true};
+  }
+  function updateOccurrence(p,now=Date.now()){
+    if(!p||!['Aberto','Em avaliação','Manutenção agendada','Resolvido'].includes(p.status)||typeof p.note!=='string'||!p.note.trim()||p.note.length>1000)invalid('Selecione a situação e descreva a ação (até 1.000 caracteres).');
+    const row=db.prepare('SELECT payload,received_at FROM inspections WHERE id=?').get(p.id),r=row&&effective(row);
+    if(!r||r.cancelled||!r.alerts.some(a=>a.item===p.item&&a.kind!=='Não verificado'))invalid('Ocorrência não encontrada.');
+    const count=db.prepare('SELECT COUNT(*) AS n FROM occurrence_updates WHERE inspection_id=? AND item=?').get(p.id,p.item).n;
+    if(p.revision!==count)invalid('A ocorrência foi alterada. Atualize o relatório.');
+    db.prepare('INSERT INTO occurrence_updates(inspection_id,item,created_at,payload) VALUES(?,?,?,?)').run(p.id,p.item,new Date(now).toISOString(),JSON.stringify({status:p.status,note:p.note.trim(),actor:'Gestor'}));
+    return {ok:true};
+  }
   const fleet=()=>db.prepare('SELECT * FROM vehicles ORDER BY id').all().map(v=>({...v,active:!!v.active,refrigerated:!!v.refrigerated}));
   const driverKey=r=>{const id=r.driverId??db.prepare('SELECT driver_id FROM driver_aliases WHERE name=?').get(r.driver)?.driver_id;return id?`id:${id}`:`name:${r.driver}`;};
   const tripState=key=>{const s=JSON.parse(db.prepare('SELECT state FROM trip_state WHERE driver_key=?').get(key)?.state||'null');if(s?.pending&&s.pending.km===undefined){const r=db.prepare('SELECT payload FROM inspections WHERE id=?').get(s.pending.id);if(r)s.pending.km=JSON.parse(r.payload).km;}return s;};
   function catalog(all=false){
-    const vs=fleet(),history=db.prepare('SELECT payload,received_at FROM inspections ORDER BY json_extract(payload,\'$.inspectedAt\') DESC,received_at DESC,id DESC').all().map(r=>({...JSON.parse(r.payload),receivedAt:r.received_at}));
-    for(const r of [...history].reverse())mileage.merge(vs.find(v=>v.id===r.vehicle),r);
+    const vs=fleet(),historyRows=history().reverse();
+    for(const r of [...historyRows].reverse())mileage.merge(vs.find(v=>v.id===r.vehicle),r);
     const drivers=db.prepare('SELECT * FROM drivers ORDER BY id').all().map(d=>{
       const aliases=db.prepare('SELECT name FROM driver_aliases WHERE driver_id=?').all(d.id).map(a=>a.name);
-      const recent=history.filter(r=>r.driverId===d.id || (!r.driverId&&aliases.includes(r.driver))).filter(r=>vs.some(v=>v.id===r.vehicle&&v.active)).slice(0,30);
+      const recent=historyRows.filter(r=>r.driverId===d.id || (!r.driverId&&aliases.includes(r.driver))).filter(r=>vs.some(v=>v.id===r.vehicle&&v.active)).slice(0,30);
       const counts=new Map();recent.forEach(r=>counts.set(r.vehicle,(counts.get(r.vehicle)||0)+1));
       const ranked=[...counts].sort((a,b)=>b[1]-a[1]);
       const fixed=vs.find(v=>v.id===d.default_vehicle&&v.active);
@@ -97,10 +146,10 @@ function openStore(dir) {
     return catalog(true);
   }
   return {
-    catalog,saveCatalog,
+    catalog,saveCatalog,correct,updateOccurrence,
     mileage(vehicleId){
       const vehicle=fleet().find(v=>v.id===vehicleId);if(!vehicle)invalid('Selecione um veículo cadastrado.');
-      const records=db.prepare('SELECT payload,received_at FROM inspections WHERE json_extract(payload,\'$.vehicle\')=? ORDER BY json_extract(payload,\'$.inspectedAt\'),received_at,id').all(vehicleId).map(r=>({...JSON.parse(r.payload),receivedAt:r.received_at}));
+      const records=history().filter(r=>r.vehicle===vehicleId);
       let previousReturn=null;
       const readings=records.map(r=>{const row={id:r.id,km:r.km,type:r.type,driver:r.driver,inspectedAt:r.inspectedAt,receivedAt:r.receivedAt,kmNote:r.kmNote||'',gapSinceReturn:r.type==='Saída'&&previousReturn?r.km-previousReturn.km:null};if(r.type==='Retorno')previousReturn=r;mileage.merge(vehicle,r);return row;});
       return {vehicle,readings:readings.reverse()};
@@ -148,15 +197,17 @@ function openStore(dir) {
       if(day>end)invalid('A data inicial deve ser anterior ou igual à final.');
       const selectedVehicle=vehicleId===null?null:fleet().find(v=>v.id===vehicleId);
       if(vehicleId!==null&&(!Number.isInteger(vehicleId)||!selectedVehicle))invalid('Selecione um veículo cadastrado.');
-      const all = db.prepare('SELECT payload,received_at FROM inspections WHERE day BETWEEN ? AND ? AND (? IS NULL OR json_extract(payload,\'$.vehicle\')=?) ORDER BY day DESC,received_at DESC').all(day,end,vehicleId,vehicleId).map(row=>{const r=JSON.parse(row.payload);return {...r,vehicleName:r.vehicleName||vehicles[r.vehicle]||'Veículo histórico',receivedAt:row.received_at};});
+      const selected=db.prepare('SELECT payload,received_at FROM inspections WHERE day BETWEEN ? AND ? ORDER BY day DESC,received_at DESC').all(day,end).map(effective).filter(r=>vehicleId===null||r.vehicle===vehicleId).map(r=>({...r,vehicleName:r.vehicleName||vehicles[r.vehicle]||'Veículo histórico'}));
+      const all=selected.filter(r=>!r.cancelled);
       const occurrences=[],unverified=[],groups=new Map();
       for(const r of all)for(const a of r.alerts){
         const o={...a,id:r.id,driver:r.driver,vehicle:r.vehicle,vehicleName:r.vehicleName,type:r.type,km:r.km,date:dateKey(r.inspectedAt),inspectedAt:r.inspectedAt};
+        o.history=db.prepare('SELECT created_at,payload FROM occurrence_updates WHERE inspection_id=? AND item=? ORDER BY seq').all(r.id,a.item).map(u=>({...JSON.parse(u.payload),at:u.created_at}));o.status=o.history.at(-1)?.status||'Aberto';
         if(a.kind==='Não verificado'){unverified.push(o);continue;}
         occurrences.push(o);const g=groups.get(a.item)||{item:a.item,count:0,days:new Set(),vehicles:new Set()};g.count++;g.days.add(o.date);g.vehicles.add(r.vehicle);groups.set(a.item,g);
       }
       const frequency=[...groups.values()].map(g=>({item:g.item,count:g.count,days:g.days.size,vehicles:g.vehicles.size,dates:[...g.days].sort()})).sort((a,b)=>b.count-a.count||a.item.localeCompare(b.item));
-      return { day,start:day,end,vehicleId,vehicleLabel:selectedVehicle?.name||'Todos os veículos',total:all.length,exits:all.filter(r=>r.type==='Saída').length,returns:all.filter(r=>r.type==='Retorno').length,withAlerts:all.filter(r=>r.alerts.length).length,records:all,vehicles,items,occurrences,unverified,frequency,defects:occurrences.filter(o=>o.kind!=='Manutenção').length,maintenanceAlerts:occurrences.filter(o=>o.kind==='Manutenção').length };
+      return { day,start:day,end,vehicleId,vehicleLabel:selectedVehicle?.name||'Todos os veículos',total:all.length,exits:all.filter(r=>r.type==='Saída').length,returns:all.filter(r=>r.type==='Retorno').length,withAlerts:all.filter(r=>r.alerts.length).length,records:selected,vehicles,items,occurrences,unverified,frequency,defects:occurrences.filter(o=>o.kind!=='Manutenção').length,maintenanceAlerts:occurrences.filter(o=>o.kind==='Manutenção').length };
     },
     close:()=>db.close()
   };

@@ -67,6 +67,10 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
       const url = new URL(req.url, allowedOrigin);
       if (req.method === 'POST') {
         if (req.headers.origin !== allowedOrigin) return json(res, 403, { message: 'Origem não autorizada.' });
+        if(['/api/corrections','/api/occurrences'].includes(url.pathname)){
+          if(!session(req))return json(res,401,{message:'Entre no painel para alterar registros.'});
+          const p=await body(req);return json(res,200,url.pathname==='/api/corrections'?store.correct(p,now()):store.updateOccurrence(p,now()));
+        }
         if (url.pathname === '/api/catalog') {
           if(!session(req))return json(res,401,{message:'Entre no painel para alterar cadastros.'});
           return json(res,200,store.saveCatalog(await body(req)));
@@ -144,6 +148,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         return await serve(res, url.pathname==='/cadastros'?'pages/cadastros.html':'pages/gestor.html');
       }
       const routes = {
+        '/drafts.js':['drafts.js','text/javascript; charset=utf-8'],
         '/mileage.js':['mileage.js','text/javascript; charset=utf-8'],
         '/trip-rules.js':['trip-rules.js','text/javascript; charset=utf-8'],
         '/brand.css':['brand.css','text/css; charset=utf-8'],

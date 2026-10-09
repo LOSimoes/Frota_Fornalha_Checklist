@@ -1,7 +1,25 @@
 let outbox, submission, finishing=false;
 let checkingStart=false;
+let drafts,draftReady=false,draftId=crypto.randomUUID();
+document.getElementById('app').inert=true;document.getElementById('footer').inert=true;
+const draftStatus=message=>{document.getElementById('draftStatus').textContent=message;};
+function saveDraft(){
+  if(!draftReady||submission||!inspectionState.name)return;
+  draftStatus('Salvando rascunho…');
+  return drafts.save({version:1,id:draftId,step,inspectionState,answers,notes,levels,photos:inspectionPhotos,kmEdited,kmAutoKey,fleet,drivers,tripControl}).then(()=>draftStatus('Rascunho salvo neste aparelho.')).catch(()=>draftStatus('Não foi possível salvar o rascunho. Mantenha a página aberta.'));
+}
+async function discardDraft(){
+  if(!draftReady||photoBusy||finishing)return;
+  if(!confirm('Descartar a vistoria em preenchimento? Os registros já concluídos serão mantidos.'))return;
+  try{await drafts.clear();await newInspection();draftStatus('Rascunho descartado.');}catch{draftStatus('Não foi possível descartar. Tente novamente.');}
+}
+const renderWithoutDraft=render;
+render=function(){renderWithoutDraft();saveDraft();};
+document.addEventListener('input',saveDraft);
+document.addEventListener('change',saveDraft);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveDraft();});
 async function checkTripBeforeStart(){
-  if(checkingStart)return;checkingStart=true;
+  if(checkingStart||!draftReady)return;checkingStart=true;
   try{if(inspectionState.name)await refreshTripState(false);if(step===0&&!submission)advanceStep();}
   catch{document.getElementById('message').textContent='Não foi possível conferir a pendência. Tente sincronizar novamente.';}
   finally{checkingStart=false;}
@@ -35,30 +53,39 @@ async function completeInspection(){
     if(photoBusy)throw new Error('Aguarde o processamento das fotos antes de concluir.');
     if(!outbox)throw new Error('Armazenamento indisponível. Não feche esta página; tente novamente.');
     if(!submission){await refreshTripState(false);const issue=tripMessage();if(issue)throw new Error(issue);}
-    if(!submission)submission={version:2,id:crypto.randomUUID(),inspectedAt:new Date().toISOString(),driver:inspectionState.name,driverId:inspectionState.driverId||drivers.find(d=>d.name===inspectionState.name)?.id,vehicle:Number(inspectionState.vehicle),vehicleName:vehicles[inspectionState.vehicle],refrigerated:refrigerated(),type:inspectionState.type,km:Number(inspectionState.km),kmNote:inspectionState.kmNote||'',temperature:refrigerated()?Number(inspectionState.temp):null,answers:{...answers},notes:{...notes},levels:{...levels}};
+    if(!submission)submission={version:2,id:draftId,inspectedAt:new Date().toISOString(),driver:inspectionState.name,driverId:inspectionState.driverId||drivers.find(d=>d.name===inspectionState.name)?.id,vehicle:Number(inspectionState.vehicle),vehicleName:vehicles[inspectionState.vehicle],refrigerated:refrigerated(),type:inspectionState.type,km:Number(inspectionState.km),kmNote:inspectionState.kmNote||'',temperature:refrigerated()?Number(inspectionState.temp):null,answers:{...answers},notes:{...notes},levels:{...levels}};
     if(!submission.photos)submission.photos=inspectionPhotos.filter(p=>answers[p.item]==='Problema').map(p=>({...p}));
-    const row=await outbox.enqueue(submission);showReceipt(row);window.scrollTo(0,0);
+    const row=await outbox.enqueue(submission);await drafts.clear();draftStatus('Vistoria concluída; confira a confirmação de envio.');showReceipt(row);window.scrollTo(0,0);
     await outbox.sync();
   }catch(error){showModal('Não foi possível concluir',error.message);}
   finally{finishing=false;}
 }
-async function newInspection(){submission=null;inspectionPhotos=[];step=0;inspectionState={...inspectionState,km:'',kmNote:'',temp:''};kmEdited=false;kmAutoKey='';answers={};notes={};levels={};await loadCatalog();selectTrip();suggestMileage(true);render();window.scrollTo(0,0);}
+async function newInspection(){draftId=crypto.randomUUID();submission=null;inspectionPhotos=[];step=0;inspectionState={name:'',vehicle:inspectionState.vehicle,type:'Saída',km:'',kmNote:'',temp:''};kmEdited=false;kmAutoKey='';answers={};notes={};levels={};await loadCatalog();selectTrip();suggestMileage(true);render();window.scrollTo(0,0);}
 async function syncInspections(){if(outbox)try{await outbox.sync();await loadCatalog();}catch{document.getElementById('queueStatus').textContent='Não foi possível acessar os registros locais. Tente novamente.';}}
 (async()=>{
   try{
     outbox=FrotaOutbox.create({storage:FrotaOutbox.browserStorage(),send:sendInspection,onChange:updateQueue});
-    updateQueue(await outbox.all());await syncInspections();
-  }catch{outbox=null;document.getElementById('queueStatus').textContent='Armazenamento indisponível neste navegador. O envio não pode ser concluído.';}
+    drafts=FornalhaDrafts.create(FornalhaDrafts.browserStorage());
+    const saved=await drafts.read(),rows=await outbox.all();
+    if(saved?.version===1){
+      const completed=rows.find(r=>r.id===saved.id);
+      if(completed){submission=completed.payload;await drafts.clear();showReceipt(completed);}
+      else{draftId=saved.id;step=saved.step;inspectionState=saved.inspectionState;answers=saved.answers;notes=saved.notes;levels=saved.levels;inspectionPhotos=saved.photos;kmEdited=true;kmAutoKey=saved.kmAutoKey;fleet=saved.fleet;drivers=saved.drivers;tripControl=saved.tripControl;vehicles=[];fleet.forEach(v=>vehicles[v.id]=v.name);renderWithoutDraft();}
+    }
+    draftReady=true;document.getElementById('app').inert=false;document.getElementById('footer').inert=false;draftStatus(saved&&!submission?'Rascunho recuperado. Confira os dados antes de continuar.':'Rascunho automático disponível neste aparelho.');
+    updateQueue(rows);await syncInspections();
+  }catch{outbox=null;draftStatus('Armazenamento indisponível. Reabra o aplicativo em uma aba normal e tente novamente.');document.getElementById('queueStatus').textContent='Armazenamento indisponível neste navegador. O envio não pode ser concluído.';}
 })();
 window.addEventListener('online',syncInspections);
 async function loadCatalog(force=false){
+  if(!draftReady)return;
   if(!force&&(step!==0||submission))return;
   let catalog;
   try{const response=await fetch('/api/catalog',{signal:AbortSignal.timeout(10000)});if(!response.ok)throw new Error();catalog=await response.json();try{localStorage.setItem('fornalha-catalog',JSON.stringify(catalog));}catch{}}
   catch{try{catalog=JSON.parse(localStorage.getItem('fornalha-catalog'));}catch{}}
   if(!catalog||!Array.isArray(catalog.vehicles)||!Array.isArray(catalog.drivers))return;
   tripControl=catalog.tripRules===true;
-  if(outbox){const rows=(await outbox.all()).filter(r=>r.status==='pending'||r.status==='sent').sort((a,b)=>Date.parse(a.payload.inspectedAt)-Date.parse(b.payload.inspectedAt)||(a.sequence||0)-(b.sequence||0));for(const row of rows){FornalhaMileage.merge(catalog.vehicles.find(v=>v.id===row.payload.vehicle),{...row.payload,receivedAt:row.receivedAt});if(row.status!=='pending')continue;const d=catalog.drivers.find(d=>d.id===row.payload.driverId);if(!d||d.trip?.lastId===row.id||d.trip?.pending?.id===row.id)continue;if(d.trip?.lastAt&&Date.parse(row.payload.inspectedAt)<Date.parse(d.trip.lastAt))continue;if(!FornalhaTrips.error(d.trip,row.payload))d.trip=FornalhaTrips.advance(d.trip,row.payload);}}
+  if(outbox){const rows=(await outbox.all()).filter(r=>r.status==='pending').sort((a,b)=>Date.parse(a.payload.inspectedAt)-Date.parse(b.payload.inspectedAt)||(a.sequence||0)-(b.sequence||0));for(const row of rows){const d=catalog.drivers.find(d=>d.id===row.payload.driverId);if(!d||d.trip?.lastId===row.id||d.trip?.pending?.id===row.id)continue;if(d.trip?.lastAt&&Date.parse(row.payload.inspectedAt)<Date.parse(d.trip.lastAt))continue;if(!FornalhaTrips.error(d.trip,row.payload)){FornalhaMileage.merge(catalog.vehicles.find(v=>v.id===row.payload.vehicle),row.payload);d.trip=FornalhaTrips.advance(d.trip,row.payload);}}}
   fleet=catalog.vehicles;drivers=catalog.drivers;vehicles=[];fleet.forEach(v=>vehicles[v.id]=v.name);
   if(step===0&&!fleet.some(v=>v.id===Number(inspectionState.vehicle)))inspectionState.vehicle=fleet[0]?.id??-1;
   const current=drivers.find(d=>d.id===inspectionState.driverId||d.name===inspectionState.name);

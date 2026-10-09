@@ -1,8 +1,10 @@
 # Frota Fornalha
 
-**Beta 0.3.0-beta.1** — roteiro do Dell Windows e conexão por internet em [INSTALACAO_WINDOWS.md](INSTALACAO_WINDOWS.md).
+**Beta 0.6.0-beta.1** — roteiro do Dell Windows e conexão por internet em [INSTALACAO_WINDOWS.md](INSTALACAO_WINDOWS.md).
 
-Checklist responsivo com fila local, armazenamento SQLite e painel exclusivo do gestor.
+Checklist responsivo com rascunho automático, fila local, SQLite e painel exclusivo do gestor.
+
+Atualização atual, funções e limites: [ATUALIZACAO_BETA_0.6.md](ATUALIZACAO_BETA_0.6.md).
 
 ## Iniciar no Windows
 

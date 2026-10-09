@@ -34,6 +34,10 @@ test('acesso privado: configuração, sessão, limites, saída e persistência',
     const value=payload || (password!==undefined?{password}:undefined);
     return fetch(base + url, { method, redirect: 'manual', headers: { Host: host, Origin: requestOrigin, ...(value ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}), ...(token ? { 'X-Setup-Token': token } : {}) }, ...(value ? { body: JSON.stringify(value) } : {}) });
   }
+  for(const endpoint of ['/api/corrections','/api/occurrences']){
+    assert.equal((await call(endpoint,{method:'POST',payload:{}})).status,401);
+    assert.equal((await call(endpoint,{method:'POST',payload:{},requestOrigin:'https://outro.example'})).status,403);
+  }
   const password = 'Senha apenas de teste 2026!';
   let response = await call('/gestor'); assert.equal(response.status, 303); assert.equal(response.headers.get('location'), '/acesso');
   for (const url of ['/pages/gestor.html', '/data/admin.json', '/server.cjs', '/.git/config']) assert.equal((await call(url)).status, 404);
