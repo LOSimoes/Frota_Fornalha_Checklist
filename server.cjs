@@ -44,12 +44,12 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
   }
   async function body(req, maxBytes = 4096) {
     if (!(req.headers['content-type'] || '').startsWith('application/json')) throw Object.assign(new Error('Formato inválido.'), { status: 415 });
-    let raw = '';
+    const chunks=[];let length=0;
     for await (const chunk of req) {
-      raw += chunk;
-      if (Buffer.byteLength(raw) > maxBytes) throw Object.assign(new Error('Dados excedem o limite.'), { status: 413 });
+      length+=chunk.length;chunks.push(chunk);
+      if (length > maxBytes) throw Object.assign(new Error('Dados excedem o limite.'), { status: 413 });
     }
-    try { return JSON.parse(raw); } catch { throw Object.assign(new Error('Dados inválidos.'), { status: 400 }); }
+    try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw Object.assign(new Error('Dados inválidos.'), { status: 400 }); }
   }
   async function serve(res, file, type = 'text/html; charset=utf-8') {
     const content = await fs.readFile(path.join(ROOT, file));
@@ -72,7 +72,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
           return json(res,200,store.saveCatalog(await body(req)));
         }
         if (url.pathname === '/api/inspections') {
-          const receipt = store.save(await body(req, 32768), now());
+          const receipt = store.save(await body(req, 4000000), now());
           return json(res, receipt.duplicate ? 200 : 201, receipt);
         }
         if (url.pathname === '/api/logout') {
@@ -118,7 +118,15 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
       if (url.pathname === '/api/inspections') {
         if (!session(req)) return json(res, 401, { message:'Entre no painel para consultar as vistorias.' });
         const start=url.searchParams.get('start')||url.searchParams.get('date')||dateKey(now());
-        return json(res, 200, store.list(start,url.searchParams.get('end')||start));
+        const vehicle=url.searchParams.get('vehicle');
+        if(vehicle!==null&&!/^\d+$/.test(vehicle))return json(res,400,{message:'Veículo inválido.'});
+        return json(res, 200, store.list(start,url.searchParams.get('end')||start,vehicle===null?null:Number(vehicle)));
+      }
+      if(url.pathname.startsWith('/api/photos/')){
+        if(!session(req))return json(res,401,{message:'Entre no painel para visualizar fotos.'});
+        const photo=store.photo(url.pathname.slice('/api/photos/'.length));
+        if(!photo)return json(res,404,{message:'Foto não encontrada.'});
+        res.writeHead(200,{'Content-Type':'image/jpeg','Content-Disposition':'inline'});return res.end(photo.data);
       }
       if(url.pathname==='/api/catalog')return json(res,200,store.catalog());
       if(url.pathname==='/api/catalog/admin'){
@@ -134,6 +142,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         '/': ['index.html'], '/index.html': ['index.html'], '/celular.html': ['celular.html'],
         '/outbox.js': ['outbox.js', 'text/javascript; charset=utf-8'], '/driver.js': ['driver.js', 'text/javascript; charset=utf-8'],
         '/sw.js': ['sw.js', 'text/javascript; charset=utf-8'],
+        '/photos.js':['photos.js','text/javascript; charset=utf-8'], '/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'], '/icon.svg':['icon.svg','image/svg+xml'],
         '/acesso': ['pages/acesso.html'], '/acesso.js': ['pages/acesso.js', 'text/javascript; charset=utf-8'],
         '/gestor.js': ['pages/gestor.js', 'text/javascript; charset=utf-8'], '/gestor.css': ['pages/gestor.css', 'text/css; charset=utf-8']
         ,'/cadastros.js':['pages/cadastros.js','text/javascript; charset=utf-8']
@@ -142,18 +151,21 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
       return json(res, 404, { message: 'Não encontrado.' });
     } catch (error) { if (!res.headersSent) json(res, error.status || 500, { message: error.status ? error.message : 'Não foi possível concluir. Tente novamente.' }); else res.end(); }
   });
-  server.requestTimeout = 15000;
+  server.requestTimeout = 120000;
   server.headersTimeout = 10000;
   server.on('close', () => store.close());
   return { server, setupToken, store };
 }
 
 if (require.main === module) {
-  const host = process.env.FROTA_HOST || '127.0.0.1';
-  const port = Number(process.env.PORT || 3000);
-  const origin = process.env.FROTA_ORIGIN || `http://127.0.0.1:${port}`;
+  const configFile=path.join(ROOT,'runtime.json');
+  const config=require('node:fs').existsSync(configFile)?JSON.parse(require('node:fs').readFileSync(configFile,'utf8')):{};
+  const host = process.env.FROTA_HOST || config.host || '127.0.0.1';
+  const port = Number(process.env.PORT || config.port || 3000);
+  const origin = process.env.FROTA_ORIGIN || config.origin || `http://127.0.0.1:${port}`;
+  const dataDir=process.env.FROTA_DATA_DIR||config.dataDir||path.join(ROOT,'data');
   if (!['127.0.0.1', '::1'].includes(host) && !origin.startsWith('https://')) throw new Error('Acesso externo exige FROTA_ORIGIN com HTTPS e proxy configurado.');
-  createApplication({ origin }).then(({ server, setupToken }) => {
+  createApplication({ origin, dataDir }).then(({ server, setupToken }) => {
     server.listen(port, host, () => {
       console.log(`Motoristas: ${origin}/\nGestor: ${origin}/gestor`);
       if (setupToken) console.log(`Configure sua senha neste link local (válido por 30 minutos):\n${origin}/acesso#configurar=${setupToken}`);

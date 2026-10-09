@@ -1,7 +1,7 @@
 let outbox, submission, finishing=false;
 async function sendInspection(payload){
   if(!['http:','https:'].includes(location.protocol))throw new Error('Abra pelo servidor para enviar.');
-  const response=await fetch('/api/inspections',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(15000)});
+  const response=await fetch('/api/inspections',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(90000)});
   const result=await response.json();
   if(!response.ok){const error=new Error(result.message || 'Não foi possível enviar.');error.permanent=[400,409,413,415].includes(response.status);throw error;}
   return result;
@@ -22,14 +22,16 @@ function showReceipt(row){
 async function completeInspection(){
   if(finishing)return;finishing=true;
   try{
+    if(photoBusy)throw new Error('Aguarde o processamento das fotos antes de concluir.');
     if(!outbox)throw new Error('Armazenamento indisponível. Não feche esta página; tente novamente.');
     if(!submission)submission={version:2,id:crypto.randomUUID(),inspectedAt:new Date().toISOString(),driver:inspectionState.name,driverId:inspectionState.driverId||drivers.find(d=>d.name===inspectionState.name)?.id,vehicle:Number(inspectionState.vehicle),vehicleName:vehicles[inspectionState.vehicle],refrigerated:refrigerated(),type:inspectionState.type,km:Number(inspectionState.km),temperature:refrigerated()?Number(inspectionState.temp):null,answers:{...answers},notes:{...notes},levels:{...levels}};
+    if(!submission.photos)submission.photos=inspectionPhotos.filter(p=>answers[p.item]==='Problema').map(p=>({...p}));
     const row=await outbox.enqueue(submission);showReceipt(row);window.scrollTo(0,0);
     await outbox.sync();
   }catch(error){showModal('Não foi possível concluir',error.message);}
   finally{finishing=false;}
 }
-function newInspection(){submission=null;step=0;inspectionState={...inspectionState,km:'',temp:''};answers={};notes={};levels={};render();window.scrollTo(0,0);}
+function newInspection(){submission=null;inspectionPhotos=[];step=0;inspectionState={...inspectionState,km:'',temp:''};answers={};notes={};levels={};render();window.scrollTo(0,0);}
 async function syncInspections(){if(outbox)try{await outbox.sync();}catch{document.getElementById('queueStatus').textContent='Não foi possível acessar os registros locais. Tente novamente.';}}
 (async()=>{
   try{

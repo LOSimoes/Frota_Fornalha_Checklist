@@ -1,5 +1,7 @@
 # Frota Fornalha
 
+**Beta 0.3.0-beta.1** — roteiro do Dell Windows e conexão por internet em [INSTALACAO_WINDOWS.md](INSTALACAO_WINDOWS.md).
+
 Checklist responsivo com fila local, armazenamento SQLite e painel exclusivo do gestor.
 
 ## Iniciar no Windows
@@ -37,7 +39,9 @@ O servidor inicia apenas no computador local. Para publicar na rede e permitir a
 - O gráfico conta relatos por categoria, dias distintos e veículos afetados. Um mesmo defeito relatado em duas vistorias conta duas vezes, mas no mesmo dia conta apenas um dia. Alertas de temperatura são identificados como manutenção; itens não verificados aparecem em seção separada e não entram como defeitos. Não se trata de previsão automática de falha nem contagem de novos defeitos únicos.
 - Cadastros em `/cadastros`: criar, renomear e inativar motoristas e veículos, informar refrigeração e definir veículo habitual. Sem vínculo manual, a sugestão usa o veículo mais frequente nas últimas 30 vistorias recebidas daquele motorista, ordenadas pela data da vistoria; empates favorecem o mais recente. O motorista pode trocar o veículo na identificação.
 - IDs de cadastro são permanentes. Novos registros guardam nomes da vistoria; registros antigos preservam seus nomes originais e veículos iniciais, mesmo depois de renomear. Cadastros ativos são armazenados localmente para uso offline. Mudanças são carregadas ao abrir a página com conexão; recarregue após editar no gestor.
-- Fotos reais e resolução de ocorrências serão implementadas nas próximas etapas. Alertas ainda são apontamentos da vistoria, sem ciclo de resolução.
+- Filtro por veículo no gestor, incluindo registros de carros inativos e renomeados; aplica-se a totais, gráfico e impressão. Espaço de monitoramento reservado, sem agente ou mensagens automáticas ativos.
+- Até seis fotos por vistoria, vinculadas aos problemas. O navegador converte para JPEG de no máximo 1.600 pixels e menos de 450 KB por imagem. Fotos ficam na fila offline até o recibo; servidor salva respostas e fotos na mesma transação. A visualização de fotos exige sessão do gestor. O relatório impresso lista ocorrências; fotos podem ser abertas na vistoria.
+- Resolução das ocorrências ainda será implementada. Alertas são apontamentos da vistoria, sem ciclo de resolução.
 - Recuperação de senha, serviço automático do Windows, backup e instalação nos celulares ainda serão definidos.
 
 ## Verificação
@@ -55,4 +59,4 @@ Também verificam persistência após reabertura, consulta privada, validação 
 1. Abra a raiz do servidor e conclua uma vistoria com os cadastros de exemplo.
 2. Aguarde “Vistoria recebida” (ou confira o estado de espera quando estiver sem conexão).
 3. Entre em `/gestor`, selecione a data e use Atualizar para consultar o registro.
-4. Para preservar os dados em um backup manual, encerre o servidor e copie a pasta `data` inteira para armazenamento protegido. Ainda falta automatizar e testar a restauração do backup na instalação definitiva.
+4. Execute `node scripts/backup.cjs` para uma cópia consistente do banco, incluindo fotos, e do cadastro de acesso. O teste automatizado verifica reabertura de backup; ainda é necessário homologar rotina e restauração no Dell definitivo.

@@ -33,7 +33,9 @@
             try{
               const receipt=await send(row.payload);
               if(receipt.id!==row.id || !receipt.receivedAt)throw new Error('Confirmação inválida.');
-              await storage.put({...row,status:'sent',receivedAt:receipt.receivedAt,message:''});
+              const payload={...row.payload};
+              if(payload.photos)payload.photos=payload.photos.map(({data,...photo})=>photo);
+              await storage.put({...row,payload,status:'sent',receivedAt:receipt.receivedAt,message:''});
             }catch(error){
               if(error.permanent)await storage.put({...row,status:'rejected',message:error.message});
               else break;

@@ -4,6 +4,8 @@ Status: levantamento iniciado em 07/10/2026 e atualizado em 08/10/2026. Requisit
 
 ## Confirmado pelo responsável
 
+Atualização de 09/10/2026: servidor Dell separado, Windows, ligado 24 horas; domínio da empresa `fornalhamineira.com.br`, site gerenciado no Wix. Subdomínio sugerido para o beta: `frota.fornalhamineira.com.br`, ainda não configurado. Registrador/DNS efetivo e versão do Windows Server pendentes de confirmação. O beta inclui fotos e filtro de veículo somente no gestor. Espaço de monitoramento futuro reservado, sem ativação de agente ou notificações. Guia de instalação e scripts de inicialização/backup adicionados.
+
 - Seis veículos: dois Fiat Mobi; três Renault Master (duas curtas e uma longa); uma Fiat Ducato 2025.
 - Master: uma 2024, uma 2018 e uma zero km cujo ano de fabricação/modelo precisa ser confirmado. A longa foi identificada no histórico como 2018; confirmar cadastro final.
 - Anos dos Mobi, placas, apelidos e quilometragens ainda pendentes.
