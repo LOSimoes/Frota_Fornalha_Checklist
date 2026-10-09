@@ -20,15 +20,18 @@
     return {
       all:()=>storage.all(),
       async enqueue(payload){
-        const previous=(await storage.all()).find(row=>row.id===payload.id);
+        const rows=await storage.all();
+        const previous=rows.find(row=>row.id===payload.id);
         if(previous) return previous;
-        const row={id:payload.id,payload,status:'pending'};
+        const row={id:payload.id,payload,status:'pending',sequence:Math.max(0,...rows.map(r=>r.sequence||0))+1};
         await storage.put(row);await notify();return row;
       },
       sync(){
         if(running)return running;
         running=(async()=>{
-          for(const row of await storage.all()){
+          // IndexedDB getAll uses UUID order, not the departure/return order.
+          const ordered=(await storage.all()).map((row,index)=>({row,index})).sort((a,b)=>Date.parse(a.row.payload.inspectedAt)-Date.parse(b.row.payload.inspectedAt)||(a.row.sequence||0)-(b.row.sequence||0)||a.index-b.index);
+          for(const {row} of ordered){
             if(row.status!=='pending')continue;
             try{
               const receipt=await send(row.payload);

@@ -1,6 +1,7 @@
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
+const tripRules = require('./trip-rules.js');
 const vehicles = ['Master curta 01','Master curta 02','Master longa · 2018','Ducato · 2025','Mobi vendedor 01','Mobi vendedor 02'];
 const items = { pneus:'Pneus e rodas', freios:'Freios e direção', luzes:'Luzes e visibilidade', oleo:'Nível de óleo', motor:'Motor e painel', avarias:'Carroceria e portas', seguranca:'Cintos e equipamentos', frio:'Refrigeração' };
 const dateKey = time => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date(time));
@@ -49,12 +50,17 @@ function openStore(dir) {
   const db = new DatabaseSync(path.join(dir, 'frota.sqlite'));
   db.exec('PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000; CREATE TABLE IF NOT EXISTS inspections(id TEXT PRIMARY KEY, day TEXT NOT NULL, received_at TEXT NOT NULL, payload TEXT NOT NULL)');
   db.exec('CREATE INDEX IF NOT EXISTS inspections_day ON inspections(day)');
+  // Existing inspection history remains intact. Only movements received after
+  // this migration participate in the new departure/return control.
+  db.exec('CREATE TABLE IF NOT EXISTS trip_state(driver_key TEXT PRIMARY KEY, state TEXT NOT NULL)');
   db.exec('CREATE TABLE IF NOT EXISTS photos(id TEXT PRIMARY KEY, inspection_id TEXT NOT NULL, item TEXT NOT NULL, data BLOB NOT NULL)');
   db.exec('CREATE TABLE IF NOT EXISTS vehicles(id INTEGER PRIMARY KEY, name TEXT NOT NULL, refrigerated INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1); CREATE TABLE IF NOT EXISTS drivers(id INTEGER PRIMARY KEY, name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, default_vehicle INTEGER)');
   if(!db.prepare('SELECT COUNT(*) AS n FROM vehicles').get().n) vehicles.forEach((name,id)=>db.prepare('INSERT INTO vehicles(id,name,refrigerated) VALUES(?,?,?)').run(id,name,id<4?1:0));
   if(!db.prepare('SELECT COUNT(*) AS n FROM drivers').get().n) ['Motorista 01 · exemplo','Motorista 02 · exemplo','Motorista 03 · exemplo','Vendedor 01 · exemplo','Vendedor 02 · exemplo'].forEach(name=>db.prepare('INSERT INTO drivers(name) VALUES(?)').run(name));
   db.exec('CREATE TABLE IF NOT EXISTS driver_aliases(name TEXT PRIMARY KEY, driver_id INTEGER NOT NULL); INSERT OR IGNORE INTO driver_aliases SELECT name,id FROM drivers');
   const fleet=()=>db.prepare('SELECT * FROM vehicles ORDER BY id').all().map(v=>({...v,active:!!v.active,refrigerated:!!v.refrigerated}));
+  const driverKey=r=>{const id=r.driverId??db.prepare('SELECT driver_id FROM driver_aliases WHERE name=?').get(r.driver)?.driver_id;return id?`id:${id}`:`name:${r.driver}`;};
+  const tripState=key=>JSON.parse(db.prepare('SELECT state FROM trip_state WHERE driver_key=?').get(key)?.state||'null');
   function catalog(all=false){
     const vs=fleet(),history=db.prepare('SELECT payload FROM inspections ORDER BY json_extract(payload,\'$.inspectedAt\') DESC,id DESC').all().map(r=>JSON.parse(r.payload));
     const drivers=db.prepare('SELECT * FROM drivers ORDER BY id').all().map(d=>{
@@ -63,9 +69,10 @@ function openStore(dir) {
       const counts=new Map();recent.forEach(r=>counts.set(r.vehicle,(counts.get(r.vehicle)||0)+1));
       const ranked=[...counts].sort((a,b)=>b[1]-a[1]);
       const fixed=vs.find(v=>v.id===d.default_vehicle&&v.active);
-      return {id:d.id,name:d.name,active:!!d.active,defaultVehicleId:d.default_vehicle,suggestedVehicleId:fixed?fixed.id:(ranked[0]?.[0]??null),suggestionSource:fixed?'Vínculo definido pelo gestor':ranked.length?'Mais usado nas últimas 30 vistorias':null};
+      return {id:d.id,name:d.name,active:!!d.active,trip:tripState(`id:${d.id}`),defaultVehicleId:d.default_vehicle,suggestedVehicleId:fixed?fixed.id:(ranked[0]?.[0]??null),suggestionSource:fixed?'Vínculo definido pelo gestor':ranked.length?'Mais usado nas últimas 30 vistorias':null};
     });
-    return {vehicles:all?vs:vs.filter(v=>v.active),drivers:all?drivers:drivers.filter(d=>d.active)};
+    const pendingIds=new Set(drivers.map(d=>d.trip?.pending?.vehicle).filter(id=>id!==undefined));
+    return {tripRules:true,vehicles:all?vs:vs.filter(v=>v.active||pendingIds.has(v.id)),drivers:all?drivers:drivers.filter(d=>d.active||d.trip?.pending)};
   }
   function saveCatalog(p){
     if(!p||!['driver','vehicle'].includes(p.kind)||typeof p.name!=='string'||!p.name.trim()||p.name.trim().length>100||typeof p.active!=='boolean')invalid('Informe nome (até 100 caracteres) e situação válidos.');
@@ -109,16 +116,22 @@ function openStore(dir) {
       const existing = db.prepare('SELECT payload, received_at FROM inspections WHERE id=?').get(record.id);
       if (existing) {
         if (existing.payload !== payload) throw Object.assign(new Error('Identificador já usado para outra vistoria. O registro original foi preservado.'), {status:409});
-        return {id:record.id,receivedAt:existing.received_at,duplicate:true};
+        return {id:record.id,receivedAt:existing.received_at,duplicate:true,trip:tripState(driverKey(record))};
       }
       const receivedAt = new Date(now).toISOString();
       db.exec('BEGIN IMMEDIATE');
       try{
+        const key=driverKey(record),state=tripState(key),message=tripRules.error(state,record);
+        if(message)throw Object.assign(new Error(message),{status:409});
+        const driver=record.driverId?db.prepare('SELECT active FROM drivers WHERE id=?').get(record.driverId):null;
+        if(record.type==='Saída'&&(driver?.active===0||!fleet().find(v=>v.id===record.vehicle)?.active))invalid('Motorista ou veículo inativo. Escolha um cadastro ativo para a saída.');
         db.prepare('INSERT INTO inspections(id,day,received_at,payload) VALUES(?,?,?,?)').run(record.id,dateKey(record.inspectedAt),receivedAt,payload);
         for(const photo of photos)db.prepare('INSERT INTO photos(id,inspection_id,item,data) VALUES(?,?,?,?)').run(photo.id,record.id,photo.item,photo.data);
+        const movement={...record,vehicleName:fleet().find(v=>v.id===record.vehicle)?.name||record.vehicleName};
+        db.prepare('INSERT INTO trip_state(driver_key,state) VALUES(?,?) ON CONFLICT(driver_key) DO UPDATE SET state=excluded.state').run(key,JSON.stringify(tripRules.advance(state,movement)));
         db.exec('COMMIT');
       }catch(error){db.exec('ROLLBACK');if(error.code?.includes('SQLITE'))invalid('Não foi possível salvar as fotos. Verifique se a identificação já foi usada.');throw error;}
-      return {id:record.id,receivedAt,duplicate:false};
+      return {id:record.id,receivedAt,duplicate:false,trip:tripState(driverKey(record))};
     },
     list(day, end=day, vehicleId=null) {
       for(const date of [day,end])if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date+'T12:00:00Z')) || new Date(date+'T12:00:00Z').toISOString().slice(0,10)!==date) invalid('Data inválida.');

@@ -1,5 +1,7 @@
 # Beta 0.3 — instalação no Dell Windows da Fornalha Mineira
 
+**Atualização em 09/10/2026:** o servidor foi confirmado como Windows Server 2022. Para o beta sem acesso ao DNS, siga [INSTALACAO_SEM_DNS.md](INSTALACAO_SEM_DNS.md), que substitui a etapa 3 abaixo e usa o serviço ngrok no lugar do conector Cloudflare. A opção de domínio próprio abaixo permanece apenas como alternativa futura.
+
 Este roteiro prepara o servidor que fica ligado 24 horas. O endereço sugerido é **https://frota.fornalhamineira.com.br**. Ele ainda não foi criado nem publicado. O site é gerenciado no Wix; ainda precisamos verificar se o domínio foi registrado lá ou apenas conectado, quem hospeda o DNS e qual é a versão do Windows Server. No Dell, `Win+R` → `winver` mostra a versão.
 
 ## Como a conexão funciona

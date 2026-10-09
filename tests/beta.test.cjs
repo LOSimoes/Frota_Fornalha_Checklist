@@ -11,7 +11,7 @@ test('fotos persistem, não duplicam e resposta de relatório não contém base6
  const collision=fixture();collision.photos[0].id=r.photos[0].id;assert.throws(()=>s.save(collision));assert.equal(s.list('2026-10-08').total,1);
 });
 test('filtro inclui veículo zero, inativo e renomeado em todos os totais',t=>{
- const s=setup(t),a=fixture(),b=fixture();b.vehicle=1;s.save(a);s.save(b);s.saveCatalog({kind:'vehicle',id:0,name:'Frota 01',active:false,refrigerated:true});
+ const s=setup(t),a=fixture(),b=fixture();b.vehicle=1;b.driver='Outro motorista';s.save(a);s.save(b);s.saveCatalog({kind:'vehicle',id:0,name:'Frota 01',active:false,refrigerated:true});
  const report=s.list('2026-10-08','2026-10-08',0);assert.equal(report.total,1);assert.equal(report.defects,1);assert.equal(report.frequency[0].count,1);assert.equal(report.vehicleLabel,'Frota 01');assert.equal(report.records[0].vehicleName,'Master curta 01');assert.throws(()=>s.list('2026-10-08','2026-10-08',-1));
 });
 test('fila mantém foto enquanto offline e só remove bytes após recibo',async()=>{

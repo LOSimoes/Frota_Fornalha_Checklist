@@ -60,3 +60,10 @@ Também verificam persistência após reabertura, consulta privada, validação 
 2. Aguarde “Vistoria recebida” (ou confira o estado de espera quando estiver sem conexão).
 3. Entre em `/gestor`, selecione a data e use Atualizar para consultar o registro.
 4. Execute `node scripts/backup.cjs` para uma cópia consistente do banco, incluindo fotos, e do cadastro de acesso. O teste automatizado verifica reabertura de backup; ainda é necessário homologar rotina e restauração no Dell definitivo.
+
+
+## Beta 0.4 — identidade e saída/retorno
+
+Marca e ícone originais Fornalha, paleta corporativa e regra por motorista: uma nova saída exige encerrar o retorno pendente do mesmo veículo. O bloqueio é validado no servidor, persiste entre dias e reinícios, e a fila offline envia na ordem cronológica. Histórico anterior à atualização não gera pendências retroativas. Cadastros inativos com viagem aberta ficam disponíveis apenas para encerrar o retorno.
+
+Consulte [ATUALIZACAO_BETA_0.4.md](ATUALIZACAO_BETA_0.4.md) para atualizar preservando dados e recuperar os cadastros sem copiar senha ou banco de desenvolvimento. A IA e os avisos por e-mail ficam para a próxima etapa; ainda não há envio automático.

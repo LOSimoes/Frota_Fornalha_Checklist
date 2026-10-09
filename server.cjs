@@ -139,6 +139,11 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         return await serve(res, url.pathname==='/cadastros'?'pages/cadastros.html':'pages/gestor.html');
       }
       const routes = {
+        '/trip-rules.js':['trip-rules.js','text/javascript; charset=utf-8'],
+        '/brand.css':['brand.css','text/css; charset=utf-8'],
+        '/assets/logo.png':['assets/logo.png','image/png'],
+        '/assets/icon-256.png':['assets/icon-256.png','image/png'],
+        '/assets/favicon.ico':['assets/favicon.ico','image/x-icon'],
         '/': ['index.html'], '/index.html': ['index.html'], '/celular.html': ['celular.html'],
         '/outbox.js': ['outbox.js', 'text/javascript; charset=utf-8'], '/driver.js': ['driver.js', 'text/javascript; charset=utf-8'],
         '/sw.js': ['sw.js', 'text/javascript; charset=utf-8'],

@@ -126,3 +126,11 @@ Implementação de 08/10/2026: gravação SQLite, consulta autenticada por data,
 - Manuais Fiat: https://servicos.fiat.com.br/manuais.html
 
 Esta proposta operacional não representa certificação de conformidade com todas as normas nem estabelece intervalos universais de manutenção. As regras finais dependem da configuração exata dos veículos, dos manuais correspondentes e da operação da empresa.
+
+
+## Confirmações de 09/10/2026 — atualização 0.4
+
+- Nome no aplicativo instalado: Fornalha. Aplicar logo e ícone originais, bordô #82110E, vermelho #DA322D, amarelo #F8D814, dourado #ECAF16, creme #FFF1C8, branco quente #FFFDF8 e marrom #2E120A.
+- Cada motorista começa com saída. Enquanto existir saída pendente, exigir retorno do mesmo veículo antes de qualquer nova saída; a virada de dia não elimina a pendência.
+- Preservar e recuperar cadastros existentes. Não substituir banco operacional ao atualizar código.
+- Futuro agente: monitorar novas vistorias recebidas e enviar e-mail aos destinatários cadastrados ao identificar ocorrência importante, manutenção ou avaria nova, evitando repetir avisos sobre a mesma pendência. Configuração da IA adiada pelo usuário até concluir os ajustes. Provedor de e-mail, remetente e destinatários ainda pendentes.

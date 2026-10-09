@@ -9,6 +9,8 @@ function app(){
   const nodes={};
   const context=vm.createContext({document:{getElementById(id){return nodes[id]??={classList:{toggle(){}},showModal(){this.open=true;}}}},window:{scrollTo(){}},completeInspection(){nodes.completed=true;}});
   vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname,'../trip-rules.js'),'utf8'),context);
+  context.FornalhaTrips=context.window.FornalhaTrips;
   const run=code=>vm.runInContext(code,context);
   // Inline browser handlers resolve element properties before outer variables.
   // Inputs/selects expose `form` (null outside a form), which caused the regression.
@@ -83,4 +85,13 @@ test('Mobi chega à revisão sem exigir refrigeração',()=>{
 test('sugere carro habitual e permite trocar sem alterar o motorista',()=>{
  const a=app();a.run('drivers[0].suggestedVehicleId=2');a.input('Seu nome','Motorista 01 · exemplo');assert.equal(a.run('inspectionState.vehicle'),2);
  a.input('Veículo','4');assert.equal(a.run('inspectionState.vehicle'),4);assert.equal(a.run('inspectionState.name'),'Motorista 01 · exemplo');assert.equal(a.run('refrigerated()'),false);
+});
+
+test('identificação sugere retorno pendente e informa o carro ao bloquear nova saída',()=>{
+ const a=app();a.run("tripControl=true;drivers[0].trip={pending:{id:'saida',vehicle:2,vehicleName:'Master longa 1801'}}");
+ a.input('Seu nome','Motorista 01 · exemplo');assert.equal(a.run('inspectionState.type'),'Retorno');assert.equal(a.run('inspectionState.vehicle'),2);
+ assert.match(a.nodes.app.innerHTML,/Retorno pendente/);
+ a.input('Quilometragem atual','100');a.input('Vistoria','Saída');a.run('next()');assert.equal(a.run('step'),0);assert.match(a.nodes.message.textContent,/Master longa 1801/);
+ a.input('Vistoria','Retorno');a.input('Veículo','1');a.run('next()');assert.equal(a.run('step'),0);
+ a.input('Veículo','2');a.run('next()');assert.equal(a.run('step'),1);
 });

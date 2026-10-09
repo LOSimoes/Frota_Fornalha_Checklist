@@ -1,9 +1,19 @@
 let outbox, submission, finishing=false;
+let checkingStart=false;
+async function checkTripBeforeStart(){
+  if(checkingStart)return;checkingStart=true;
+  try{if(inspectionState.name)await refreshTripState(false);if(step===0&&!submission)advanceStep();}
+  catch{document.getElementById('message').textContent='Não foi possível conferir a pendência. Tente sincronizar novamente.';}
+  finally{checkingStart=false;}
+}
 async function sendInspection(payload){
   if(!['http:','https:'].includes(location.protocol))throw new Error('Abra pelo servidor para enviar.');
   const response=await fetch('/api/inspections',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(90000)});
   const result=await response.json();
   if(!response.ok){const error=new Error(result.message || 'Não foi possível enviar.');error.permanent=[400,409,413,415].includes(response.status);throw error;}
+  if(result.id===payload.id&&result.receivedAt&&Object.hasOwn(result,'trip')){
+    try{const c=JSON.parse(localStorage.getItem('fornalha-catalog'));const d=c?.drivers.find(d=>d.id===payload.driverId);if(d){d.trip=result.trip;localStorage.setItem('fornalha-catalog',JSON.stringify(c));}}catch{}
+  }
   return result;
 }
 function updateQueue(rows){
@@ -24,6 +34,7 @@ async function completeInspection(){
   try{
     if(photoBusy)throw new Error('Aguarde o processamento das fotos antes de concluir.');
     if(!outbox)throw new Error('Armazenamento indisponível. Não feche esta página; tente novamente.');
+    if(!submission){await refreshTripState(false);const issue=tripMessage();if(issue)throw new Error(issue);}
     if(!submission)submission={version:2,id:crypto.randomUUID(),inspectedAt:new Date().toISOString(),driver:inspectionState.name,driverId:inspectionState.driverId||drivers.find(d=>d.name===inspectionState.name)?.id,vehicle:Number(inspectionState.vehicle),vehicleName:vehicles[inspectionState.vehicle],refrigerated:refrigerated(),type:inspectionState.type,km:Number(inspectionState.km),temperature:refrigerated()?Number(inspectionState.temp):null,answers:{...answers},notes:{...notes},levels:{...levels}};
     if(!submission.photos)submission.photos=inspectionPhotos.filter(p=>answers[p.item]==='Problema').map(p=>({...p}));
     const row=await outbox.enqueue(submission);showReceipt(row);window.scrollTo(0,0);
@@ -31,8 +42,8 @@ async function completeInspection(){
   }catch(error){showModal('Não foi possível concluir',error.message);}
   finally{finishing=false;}
 }
-function newInspection(){submission=null;inspectionPhotos=[];step=0;inspectionState={...inspectionState,km:'',temp:''};answers={};notes={};levels={};render();window.scrollTo(0,0);}
-async function syncInspections(){if(outbox)try{await outbox.sync();}catch{document.getElementById('queueStatus').textContent='Não foi possível acessar os registros locais. Tente novamente.';}}
+async function newInspection(){submission=null;inspectionPhotos=[];step=0;inspectionState={...inspectionState,km:'',temp:''};answers={};notes={};levels={};await loadCatalog();selectTrip();render();window.scrollTo(0,0);}
+async function syncInspections(){if(outbox)try{await outbox.sync();await loadCatalog();}catch{document.getElementById('queueStatus').textContent='Não foi possível acessar os registros locais. Tente novamente.';}}
 (async()=>{
   try{
     outbox=FrotaOutbox.create({storage:FrotaOutbox.browserStorage(),send:sendInspection,onChange:updateQueue});
@@ -40,20 +51,23 @@ async function syncInspections(){if(outbox)try{await outbox.sync();}catch{docume
   }catch{outbox=null;document.getElementById('queueStatus').textContent='Armazenamento indisponível neste navegador. O envio não pode ser concluído.';}
 })();
 window.addEventListener('online',syncInspections);
-async function loadCatalog(){
-  if(step!==0||submission)return;
+async function loadCatalog(force=false){
+  if(!force&&(step!==0||submission))return;
   let catalog;
   try{const response=await fetch('/api/catalog',{signal:AbortSignal.timeout(10000)});if(!response.ok)throw new Error();catalog=await response.json();try{localStorage.setItem('fornalha-catalog',JSON.stringify(catalog));}catch{}}
   catch{try{catalog=JSON.parse(localStorage.getItem('fornalha-catalog'));}catch{}}
-  if(!catalog||!Array.isArray(catalog.vehicles)||!Array.isArray(catalog.drivers)||step!==0||submission)return;
+  if(!catalog||!Array.isArray(catalog.vehicles)||!Array.isArray(catalog.drivers))return;
+  tripControl=catalog.tripRules===true;
+  if(outbox){const rows=(await outbox.all()).filter(r=>r.status==='pending').sort((a,b)=>Date.parse(a.payload.inspectedAt)-Date.parse(b.payload.inspectedAt));for(const row of rows){const d=catalog.drivers.find(d=>d.id===row.payload.driverId);if(!d||d.trip?.lastId===row.id||d.trip?.pending?.id===row.id)continue;if(d.trip?.lastAt&&Date.parse(row.payload.inspectedAt)<Date.parse(d.trip.lastAt))continue;if(!FornalhaTrips.error(d.trip,row.payload))d.trip=FornalhaTrips.advance(d.trip,row.payload);}}
   fleet=catalog.vehicles;drivers=catalog.drivers;vehicles=[];fleet.forEach(v=>vehicles[v.id]=v.name);
-  if(!fleet.some(v=>v.id===Number(inspectionState.vehicle)))inspectionState.vehicle=fleet[0]?.id??-1;
+  if(step===0&&!fleet.some(v=>v.id===Number(inspectionState.vehicle)))inspectionState.vehicle=fleet[0]?.id??-1;
   const current=drivers.find(d=>d.id===inspectionState.driverId||d.name===inspectionState.name);
   inspectionState.name=current?.name||'';inspectionState.driverId=current?.id;
-  render();
+  if(step===0&&!submission)render();
 }
+async function refreshTripState(autoSelect=true){await loadCatalog(true);if(autoSelect&&step===0&&!submission){selectTrip();render();}}
 loadCatalog();
-window.addEventListener('online',loadCatalog);
+window.addEventListener('online',()=>loadCatalog());
 if('serviceWorker' in navigator&&['http:','https:'].includes(location.protocol))navigator.serviceWorker.register('/sw.js').catch(()=>{document.getElementById('queueStatus').textContent+=' A abertura offline ainda não está disponível.';});
 window.addEventListener('pageshow',syncInspections);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncInspections();});

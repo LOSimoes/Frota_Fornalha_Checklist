@@ -6,3 +6,5 @@ runtime.json
 logs/
 backups/
 releases/
+ngrok.yml
+cadastros-recuperados.json
