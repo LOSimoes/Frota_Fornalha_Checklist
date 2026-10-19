@@ -76,7 +76,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
           return json(res,200,store.saveCatalog(await body(req)));
         }
         if (url.pathname === '/api/inspections') {
-          const receipt = store.save(await body(req, 4000000), now());
+          const receipt = store.save(await body(req, 6500000), now());
           return json(res, receipt.duplicate ? 200 : 201, receipt);
         }
         if (url.pathname === '/api/logout') {
@@ -137,10 +137,10 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         if(!photo)return json(res,404,{message:'Foto não encontrada.'});
         res.writeHead(200,{'Content-Type':'image/jpeg','Content-Disposition':'inline'});return res.end(photo.data);
       }
-      if(url.pathname==='/api/catalog')return json(res,200,store.catalog());
+      if(url.pathname==='/api/catalog')return json(res,200,store.catalog(false,now()));
       if(url.pathname==='/api/catalog/admin'){
         if(!session(req))return json(res,401,{message:'Entre no painel para consultar cadastros.'});
-        return json(res,200,store.catalog(true));
+        return json(res,200,store.catalog(true,now()));
       }
       if (url.pathname === '/api/session') return json(res, session(req) ? 200 : 401, { authenticated: !!session(req) });
       if (['/gestor','/cadastros'].includes(url.pathname)) {
@@ -148,6 +148,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         return await serve(res, url.pathname==='/cadastros'?'pages/cadastros.html':'pages/gestor.html');
       }
       const routes = {
+        '/daily-checks.js':['daily-checks.js','text/javascript; charset=utf-8'],
         '/drafts.js':['drafts.js','text/javascript; charset=utf-8'],
         '/mileage.js':['mileage.js','text/javascript; charset=utf-8'],
         '/trip-rules.js':['trip-rules.js','text/javascript; charset=utf-8'],

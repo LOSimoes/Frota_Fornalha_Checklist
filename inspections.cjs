@@ -3,8 +3,11 @@ const crypto = require('node:crypto');
 const { DatabaseSync } = require('node:sqlite');
 const tripRules = require('./trip-rules.js');
 const mileage = require('./mileage.js');
+const daily = require('./daily-checks.js');
 const vehicles = ['Master curta 01','Master curta 02','Master longa · 2018','Ducato · 2025','Mobi vendedor 01','Mobi vendedor 02'];
 const items = { pneus:'Pneus e rodas', freios:'Freios e direção', luzes:'Luzes e visibilidade', oleo:'Nível de óleo', motor:'Motor e painel', avarias:'Carroceria e portas', seguranca:'Cintos e equipamentos', frio:'Refrigeração' };
+const legacyItems=Object.keys(items);
+Object.assign(items,{painel:'Painel e alertas',cintos:'Cintos de segurança',ocorrencia:'Ocorrência avulsa'});
 const dateKey = time => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date(time));
 const invalid = message => { throw Object.assign(new Error(message), { status:400 }); };
 function jpegSize(data){
@@ -21,18 +24,27 @@ function jpegSize(data){
 }
 function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,name,refrigerated:id<4}))) {
   if (!value || typeof value !== 'object') invalid('Vistoria inválida.');
-  if (![1,2].includes(value.version) || typeof value.id !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value.id)) invalid('Identificação da vistoria inválida.');
+  if (![1,2,3].includes(value.version) || typeof value.id !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value.id)) invalid('Identificação da vistoria inválida.');
   if (typeof value.driver !== 'string' || !value.driver.trim() || value.driver.length > 100) invalid('Informe o motorista.');
   const vehicle = fleet.find(v=>v.id===value.vehicle);
   if (!Number.isInteger(value.vehicle) || !vehicle) invalid('Veículo inválido.');
-  if (!['Saída','Retorno'].includes(value.type)) invalid('Tipo de vistoria inválido.');
-  if (!Number.isSafeInteger(value.km) || value.km < 0) invalid('Quilometragem inválida.');
+  const incident=value.version===3&&value.type==='Ocorrência';
+  if (!(value.version===3?['Saída','Ocorrência']:['Saída','Retorno']).includes(value.type)) invalid('Tipo de vistoria inválido.');
+  if (!(incident&&value.km===null)&&(!Number.isSafeInteger(value.km) || value.km < 0)) invalid('Quilometragem inválida.');
   if(value.kmNote!==undefined&&(typeof value.kmNote!=='string'||value.kmNote.length>500))invalid('Use até 500 caracteres na observação da quilometragem.');
   if (typeof value.inspectedAt !== 'string' || !Number.isFinite(Date.parse(value.inspectedAt)) || Date.parse(value.inspectedAt) > now + 300000) invalid('Data da vistoria inválida. Confira o relógio do aparelho.');
+  if(value.version===3&&(typeof value.inspector!=='string'||!value.inspector.trim()||value.inspector.length>100))invalid('Informe o responsável pelo registro (até 100 caracteres).');
+  if(incident){
+    if(!['Batida ou avaria','Defeito','Quebra na rua','Outro'].includes(value.category))invalid('Selecione o tipo da ocorrência.');
+    if(typeof value.description!=='string'||!value.description.trim()||value.description.length>2000)invalid('Descreva a ocorrência (até 2.000 caracteres).');
+    if(typeof value.location!=='string'||value.location.length>300)invalid('Informe um local de até 300 caracteres.');
+    if(!['Não sei avaliar','Leve','Atenção','Crítico'].includes(value.severity))invalid('Gravidade inválida.');
+    return {version:3,id:value.id.toLowerCase(),driver:value.driver.trim(),driverId:value.driverId??null,inspector:value.inspector.trim(),vehicle:value.vehicle,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name,refrigerated:typeof value.refrigerated==='boolean'?value.refrigerated:!!vehicle.refrigerated,type:'Ocorrência',km:value.km,inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:null,category:value.category,description:value.description.trim(),location:value.location.trim(),severity:value.severity,answers:{ocorrencia:'Problema'},notes:{ocorrencia:value.description.trim()},levels:{ocorrencia:value.severity},alerts:[{item:value.category,kind:value.severity,note:value.description.trim()}]};
+  }
   const refrigerated = value.version===1 ? value.vehicle<4 : typeof value.refrigerated==='boolean' ? value.refrigerated : !!vehicle.refrigerated;
   if (refrigerated && (typeof value.temperature !== 'number' || !Number.isFinite(value.temperature))) invalid('Temperatura inválida.');
   const answers = {}, notes = {}, levels = {}, alerts = [];
-  for (const id of Object.keys(items).filter(id => refrigerated || id !== 'frio')) {
+  for (const id of [...legacyItems,...(value.version===3?['painel','cintos']:[])].filter(id => refrigerated || id !== 'frio')) {
     const answer = value.answers?.[id];
     if (!['OK','Problema','Não verifiquei'].includes(answer)) invalid(`Responda: ${items[id]}.`);
     answers[id] = answer;
@@ -46,7 +58,7 @@ function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,
     } else if (answer === 'Não verifiquei') alerts.push({ item:items[id], kind:'Não verificado',note:'Avaliar o item não verificado.' });
   }
   if (refrigerated && value.temperature >= -13) alerts.push({item:'Temperatura',kind:'Manutenção',note:`${value.temperature} °C — avaliar manutenção em breve.`});
-  return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),vehicle:value.vehicle,type:value.type,km:value.km,...(value.kmNote?.trim()?{kmNote:value.kmNote.trim()}:{}),inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:refrigerated?value.temperature:null,answers,notes,levels,alerts,...(value.version===2?{driverId:value.driverId,refrigerated,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name}:{})};
+  return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),vehicle:value.vehicle,type:value.type,km:value.km,...(value.kmNote?.trim()?{kmNote:value.kmNote.trim()}:{}),inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:refrigerated?value.temperature:null,answers,notes,levels,alerts,...(value.version>=2?{driverId:value.driverId,refrigerated,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name}:{}),...(value.version===3?{inspector:value.inspector.trim()}:{} )};
 }
 function openStore(dir) {
   const db = new DatabaseSync(path.join(dir, 'frota.sqlite'));
@@ -74,17 +86,17 @@ function openStore(dir) {
     const row=db.prepare('SELECT payload,received_at FROM inspections WHERE id=?').get(p.id);if(!row)invalid('Vistoria não encontrada.');
     const r=effective(row);if(r.cancelled)invalid('Esta vistoria já foi cancelada.');
     if(p.revision!==r.corrections.length)invalid('O registro foi alterado. Atualize o relatório antes de corrigir.');
-    const changes={},key=driverKey(r),state=tripState(key),pending=state?.pending?.id===r.id;
+    const changes={},key=driverKey(r),state=tripState(key),pending=state?.pending?.id===r.id,canChange=r.type==='Saída'&&history().filter(h=>h.vehicle===r.vehicle&&h.type!=='Ocorrência').at(-1)?.id===r.id;
     if(p.action==='km'){
       if(!Number.isSafeInteger(p.km)||p.km<0)invalid('Informe uma quilometragem inteira e não negativa.');
       changes.km=p.km;
     }else if(p.action==='vehicle'){
-      if(!pending)invalid('Só é possível trocar o veículo de uma saída ainda pendente.');
+      if(!canChange)invalid('Só é possível trocar o veículo da última saída registrada, sem movimento posterior nesse veículo.');
       const v=fleet().find(v=>v.id===p.vehicle&&v.active);if(!v)invalid('Selecione um veículo ativo.');
       if(v.refrigerated!==(r.refrigerated??r.vehicle<4))invalid('O veículo deve ter o mesmo tipo de refrigeração da vistoria original. Cancele o lançamento incorreto e faça a vistoria adequada.');
       changes.vehicle=v.id;changes.vehicleName=v.name;
     }else if(p.action==='cancel'){
-      if(!pending)invalid('Só é possível cancelar uma saída ainda pendente.');
+      if(!canChange)invalid('Só é possível cancelar a última saída registrada, sem movimento posterior nesse veículo.');
       changes.cancelled=true;
     }else invalid('Ação inválida.');
     const entry={actor:'Gestor',reason:p.reason.trim(),changes,before:Object.fromEntries(Object.keys(changes).map(k=>[k,r[k]??null]))};
@@ -112,19 +124,20 @@ function openStore(dir) {
   const fleet=()=>db.prepare('SELECT * FROM vehicles ORDER BY id').all().map(v=>({...v,active:!!v.active,refrigerated:!!v.refrigerated}));
   const driverKey=r=>{const id=r.driverId??db.prepare('SELECT driver_id FROM driver_aliases WHERE name=?').get(r.driver)?.driver_id;return id?`id:${id}`:`name:${r.driver}`;};
   const tripState=key=>{const s=JSON.parse(db.prepare('SELECT state FROM trip_state WHERE driver_key=?').get(key)?.state||'null');if(s?.pending&&s.pending.km===undefined){const r=db.prepare('SELECT payload FROM inspections WHERE id=?').get(s.pending.id);if(r)s.pending.km=JSON.parse(r.payload).km;}return s;};
-  function catalog(all=false){
+  function catalog(all=false,now=Date.now()){
     const vs=fleet(),historyRows=history().reverse();
-    for(const r of [...historyRows].reverse())mileage.merge(vs.find(v=>v.id===r.vehicle),r);
+    for(const r of [...historyRows].reverse()){const v=vs.find(v=>v.id===r.vehicle);mileage.merge(v,r);daily.merge(v,r);}
+    const today=dateKey(now);for(const v of vs)v.dailyStatus=daily.status(v,today);
     const drivers=db.prepare('SELECT * FROM drivers ORDER BY id').all().map(d=>{
       const aliases=db.prepare('SELECT name FROM driver_aliases WHERE driver_id=?').all(d.id).map(a=>a.name);
-      const recent=historyRows.filter(r=>r.driverId===d.id || (!r.driverId&&aliases.includes(r.driver))).filter(r=>vs.some(v=>v.id===r.vehicle&&v.active)).slice(0,30);
+      const recent=historyRows.filter(r=>r.type!=='Ocorrência').filter(r=>r.driverId===d.id || (!r.driverId&&aliases.includes(r.driver))).filter(r=>vs.some(v=>v.id===r.vehicle&&v.active)).slice(0,30);
       const counts=new Map();recent.forEach(r=>counts.set(r.vehicle,(counts.get(r.vehicle)||0)+1));
       const ranked=[...counts].sort((a,b)=>b[1]-a[1]);
       const fixed=vs.find(v=>v.id===d.default_vehicle&&v.active);
       return {id:d.id,name:d.name,active:!!d.active,trip:tripState(`id:${d.id}`),defaultVehicleId:d.default_vehicle,suggestedVehicleId:fixed?fixed.id:(ranked[0]?.[0]??null),suggestionSource:fixed?'Vínculo definido pelo gestor':ranked.length?'Mais usado nas últimas 30 vistorias':null};
     });
     const pendingIds=new Set(drivers.map(d=>d.trip?.pending?.vehicle).filter(id=>id!==undefined));
-    return {tripRules:true,vehicles:all?vs:vs.filter(v=>v.active||pendingIds.has(v.id)),drivers:all?drivers:drivers.filter(d=>d.active||d.trip?.pending)};
+    return {tripRules:false,workflow:'daily-departure',today,vehicles:all?vs:vs.filter(v=>v.active),drivers:all?drivers:drivers.filter(d=>d.active)};
   }
   function saveCatalog(p){
     if(!p||!['driver','vehicle'].includes(p.kind)||typeof p.name!=='string'||!p.name.trim()||p.name.trim().length>100||typeof p.active!=='boolean')invalid('Informe nome (até 100 caracteres) e situação válidos.');
@@ -149,16 +162,16 @@ function openStore(dir) {
     catalog,saveCatalog,correct,updateOccurrence,
     mileage(vehicleId){
       const vehicle=fleet().find(v=>v.id===vehicleId);if(!vehicle)invalid('Selecione um veículo cadastrado.');
-      const records=history().filter(r=>r.vehicle===vehicleId);
+      const records=history().filter(r=>r.vehicle===vehicleId&&Number.isSafeInteger(r.km));
       let previousReturn=null;
       const readings=records.map(r=>{const row={id:r.id,km:r.km,type:r.type,driver:r.driver,inspectedAt:r.inspectedAt,receivedAt:r.receivedAt,kmNote:r.kmNote||'',gapSinceReturn:r.type==='Saída'&&previousReturn?r.km-previousReturn.km:null};if(r.type==='Retorno')previousReturn=r;mileage.merge(vehicle,r);return row;});
       return {vehicle,readings:readings.reverse()};
     },
     photo(id){return db.prepare('SELECT data FROM photos WHERE id=?').get(id);},
     save(raw, now = Date.now()) {
-      if(raw?.version===2&&(!Number.isInteger(raw.driverId)||!db.prepare('SELECT id FROM drivers WHERE id=?').get(raw.driverId)))invalid('Motorista não encontrado. Atualize os cadastros.');
+      if(raw?.version>=2&&!(raw.version===3&&raw.type==='Ocorrência'&&raw.driverId==null)&&(!Number.isInteger(raw.driverId)||!db.prepare('SELECT id FROM drivers WHERE id=?').get(raw.driverId)))invalid('Motorista não encontrado. Atualize os cadastros.');
       const record = validate(raw, now, fleet());
-      if(raw.photos!==undefined&&(!Array.isArray(raw.photos)||raw.photos.length>6))invalid('Use no máximo seis fotos por vistoria.');
+      if(raw.photos!==undefined&&(!Array.isArray(raw.photos)||raw.photos.length>10))invalid('Use no máximo dez fotos por registro.');
       const ids=new Set();
       const photos=(raw.photos||[]).map(photo=>{
         if(!photo||typeof photo.id!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(photo.id)||ids.has(photo.id))invalid('Identificação de foto inválida.');
@@ -180,14 +193,13 @@ function openStore(dir) {
       const receivedAt = new Date(now).toISOString();
       db.exec('BEGIN IMMEDIATE');
       try{
-        const key=driverKey(record),state=tripState(key),message=tripRules.error(state,record);
-        if(message)throw Object.assign(new Error(message),{status:409});
+        const key=driverKey(record),state=tripState(key);
         const driver=record.driverId?db.prepare('SELECT active FROM drivers WHERE id=?').get(record.driverId):null;
         if(record.type==='Saída'&&(driver?.active===0||!fleet().find(v=>v.id===record.vehicle)?.active))invalid('Motorista ou veículo inativo. Escolha um cadastro ativo para a saída.');
         db.prepare('INSERT INTO inspections(id,day,received_at,payload) VALUES(?,?,?,?)').run(record.id,dateKey(record.inspectedAt),receivedAt,payload);
         for(const photo of photos)db.prepare('INSERT INTO photos(id,inspection_id,item,data) VALUES(?,?,?,?)').run(photo.id,record.id,photo.item,photo.data);
         const movement={...record,vehicleName:fleet().find(v=>v.id===record.vehicle)?.name||record.vehicleName};
-        db.prepare('INSERT INTO trip_state(driver_key,state) VALUES(?,?) ON CONFLICT(driver_key) DO UPDATE SET state=excluded.state').run(key,JSON.stringify(tripRules.advance(state,movement)));
+        if(record.type!=='Ocorrência'&&(!state?.lastAt||Date.parse(record.inspectedAt)>=Date.parse(state.lastAt)))db.prepare('INSERT INTO trip_state(driver_key,state) VALUES(?,?) ON CONFLICT(driver_key) DO UPDATE SET state=excluded.state').run(key,JSON.stringify(tripRules.advance(state,movement)));
         db.exec('COMMIT');
       }catch(error){db.exec('ROLLBACK');if(error.code?.includes('SQLITE'))invalid('Não foi possível salvar as fotos. Verifique se a identificação já foi usada.');throw error;}
       return {id:record.id,receivedAt,duplicate:false,trip:tripState(driverKey(record))};
@@ -198,6 +210,8 @@ function openStore(dir) {
       const selectedVehicle=vehicleId===null?null:fleet().find(v=>v.id===vehicleId);
       if(vehicleId!==null&&(!Number.isInteger(vehicleId)||!selectedVehicle))invalid('Selecione um veículo cadastrado.');
       const selected=db.prepare('SELECT payload,received_at FROM inspections WHERE day BETWEEN ? AND ? ORDER BY day DESC,received_at DESC').all(day,end).map(effective).filter(r=>vehicleId===null||r.vehicle===vehicleId).map(r=>({...r,vehicleName:r.vehicleName||vehicles[r.vehicle]||'Veículo histórico'}));
+      const latestMovements=new Map();for(const h of history())if(h.type!=='Ocorrência')latestMovements.set(h.vehicle,h.id);
+      for(const r of selected)r.canChangeMovement=!r.cancelled&&r.type==='Saída'&&latestMovements.get(r.vehicle)===r.id;
       const all=selected.filter(r=>!r.cancelled);
       const occurrences=[],unverified=[],groups=new Map();
       for(const r of all)for(const a of r.alerts){
@@ -207,7 +221,7 @@ function openStore(dir) {
         occurrences.push(o);const g=groups.get(a.item)||{item:a.item,count:0,days:new Set(),vehicles:new Set()};g.count++;g.days.add(o.date);g.vehicles.add(r.vehicle);groups.set(a.item,g);
       }
       const frequency=[...groups.values()].map(g=>({item:g.item,count:g.count,days:g.days.size,vehicles:g.vehicles.size,dates:[...g.days].sort()})).sort((a,b)=>b.count-a.count||a.item.localeCompare(b.item));
-      return { day,start:day,end,vehicleId,vehicleLabel:selectedVehicle?.name||'Todos os veículos',total:all.length,exits:all.filter(r=>r.type==='Saída').length,returns:all.filter(r=>r.type==='Retorno').length,withAlerts:all.filter(r=>r.alerts.length).length,records:selected,vehicles,items,occurrences,unverified,frequency,defects:occurrences.filter(o=>o.kind!=='Manutenção').length,maintenanceAlerts:occurrences.filter(o=>o.kind==='Manutenção').length };
+      return { day,start:day,end,vehicleId,vehicleLabel:selectedVehicle?.name||'Todos os veículos',total:all.filter(r=>r.type!=='Ocorrência').length,incidentCount:all.filter(r=>r.type==='Ocorrência').length,exits:all.filter(r=>r.type==='Saída').length,returns:all.filter(r=>r.type==='Retorno').length,withAlerts:all.filter(r=>r.alerts.length).length,records:selected,vehicles,items,occurrences,unverified,frequency,defects:occurrences.filter(o=>o.kind!=='Manutenção').length,maintenanceAlerts:occurrences.filter(o=>o.kind==='Manutenção').length };
     },
     close:()=>db.close()
   };

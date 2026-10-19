@@ -8,7 +8,7 @@ test('quilometragem acompanha veículo, preserva último retorno e distingue dif
  s.save(row('Saída',100,'2026-10-08T10:00:00Z'),now);s.save(row('Retorno',150,'2026-10-08T18:00:00Z'),now);
  let vehicle=s.catalog().vehicles[0];assert.equal(vehicle.lastReturn.km,150);
  s.save({...row('Saída',170,'2026-10-09T10:00:00Z',2),kmNote:'Outro uso antes da saída'},now);
- vehicle=s.catalog().vehicles[0];assert.equal(vehicle.lastReading.km,170);assert.equal(vehicle.lastReturn.km,150);assert.equal(mileage.reference(vehicle).km,150);
+ vehicle=s.catalog().vehicles[0];assert.equal(vehicle.lastReading.km,170);assert.equal(vehicle.lastReturn.km,150);assert.equal(mileage.reference(vehicle).km,170);
  const history=s.mileage(0);assert.equal(history.readings.length,3);assert.equal(history.readings[0].gapSinceReturn,20);assert.equal(history.readings[0].kmNote,'Outro uso antes da saída');assert.equal(history.readings[0].driver,'Motorista 2');
  assert.equal(s.catalog().vehicles[1].lastReading,undefined);assert.throws(()=>s.mileage(1000));
 });

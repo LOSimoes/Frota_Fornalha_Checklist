@@ -1,7 +1,7 @@
 let inspectionPhotos=[],photoBusy=false,photoItem=null;
 function renderPhotos(item){
  const list=inspectionPhotos.filter(p=>p.item===item);
- return `<div class="photo-actions"><button onclick="choosePhoto('${item}',true)">Tirar foto</button><button onclick="choosePhoto('${item}',false)">Escolher foto</button></div><p class="muted">Até 6 fotos por vistoria. Fotos são enviadas ao concluir.</p><div class="photo-grid">${list.map(p=>`<figure><img src="${p.data}" alt="Foto da ocorrência"><button onclick="removePhoto('${p.id}')">Remover</button></figure>`).join('')}</div>`;
+ return `<div class="photo-actions"><button onclick="choosePhoto('${item}',true)">Tirar foto</button><button onclick="choosePhoto('${item}',false)">Escolher foto</button></div><p class="muted">Até 10 fotos por registro. Fotos são enviadas ao concluir.</p><div class="photo-grid">${list.map(p=>`<figure><img src="${p.data}" alt="Foto da ocorrência"><button onclick="removePhoto('${p.id}')">Remover</button></figure>`).join('')}</div>`;
 }
 function choosePhoto(item,camera){
  if(photoBusy){showModal('Aguarde','Estamos preparando a foto.');return;}
@@ -26,7 +26,7 @@ async function addPhotos(input){
  if(photoBusy)return;photoBusy=true;const item=photoItem;
  try{
   for(const file of input.files){
-   if(inspectionPhotos.length>=6)throw new Error('Limite de seis fotos por vistoria atingido.');
+   if(inspectionPhotos.length>=10)throw new Error('Limite de dez fotos por registro atingido.');
    const data=await compressPhoto(file);inspectionPhotos.push({id:crypto.randomUUID(),item,data});
   }
   render();

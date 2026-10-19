@@ -1,5 +1,6 @@
 data/
 .env
+email.json
 node_modules/
 *.log
 runtime.json

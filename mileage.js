@@ -7,7 +7,7 @@
     if(newer(vehicle.lastReading))vehicle.lastReading=next;
     if(record.type==='Retorno'&&newer(vehicle.lastReturn))vehicle.lastReturn=next;
   }
-  function reference(vehicle){return vehicle?.lastReturn||vehicle?.lastReading||null;}
+  function reference(vehicle){return vehicle?.lastReading||vehicle?.lastReturn||null;}
   const api={merge,reference};
   if(typeof module!=='undefined')module.exports=api;else root.FornalhaMileage=api;
 })(typeof window==='undefined'?globalThis:window);

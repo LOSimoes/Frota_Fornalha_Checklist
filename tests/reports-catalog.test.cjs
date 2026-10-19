@@ -31,7 +31,7 @@ test('cadastros, vínculo manual, hábito e histórico após renomear',t=>{
  s.save({...record('2026-10-03T13:00:00Z',1),type:'Retorno'},now);
  const r={...record('2026-10-04T12:00:00Z',v.id),version:2,driver:'João',driverId:driver.id,refrigerated:false,vehicleName:v.name,temperature:null};s.save(r,now);
  s.saveCatalog({kind:'vehicle',id:v.id,name:'Frota 08',active:false,refrigerated:false});assert.equal(s.list('2026-10-04').records[0].vehicleName,'Frota 07');assert.equal(s.save(r,now).duplicate,true);
- assert.ok(s.catalog().vehicles.some(x=>x.id===v.id&&!x.active)); // Ainda disponível para o retorno pendente.
+ assert.ok(!s.catalog().vehicles.some(x=>x.id===v.id)); // Inativos ficam no histórico e painel gestor.
  s.save({...r,id:crypto.randomUUID(),type:'Retorno',inspectedAt:'2026-10-04T13:00:00Z'},now);assert.ok(!s.catalog().vehicles.some(x=>x.id===v.id));assert.ok(s.catalog(true).vehicles.some(x=>x.id===v.id));
  assert.throws(()=>s.saveCatalog({kind:'driver',name:'João',active:true}));
 });

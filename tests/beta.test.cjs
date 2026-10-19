@@ -7,7 +7,7 @@ test('fotos persistem, não duplicam e resposta de relatório não contém base6
  const s=setup(t),r=fixture();s.save(r);assert.equal(s.save(r).duplicate,true);assert.deepEqual(Buffer.from(s.photo(r.photos[0].id).data),image);
  const report=s.list('2026-10-08');assert.equal(report.records[0].photos.length,1);assert.ok(!JSON.stringify(report).includes('base64'));
  const invalid=fixture();invalid.photos[0].data='data:image/svg+xml;base64,PHN2Zz4=';assert.throws(()=>s.save(invalid));
- const excessive=fixture();excessive.photos=Array.from({length:7},()=>({...r.photos[0],id:crypto.randomUUID()}));assert.throws(()=>s.save(excessive));
+ const excessive=fixture();excessive.photos=Array.from({length:11},()=>({...r.photos[0],id:crypto.randomUUID()}));assert.throws(()=>s.save(excessive));
  const collision=fixture();collision.photos[0].id=r.photos[0].id;assert.throws(()=>s.save(collision));assert.equal(s.list('2026-10-08').total,1);
 });
 test('filtro inclui veículo zero, inativo e renomeado em todos os totais',t=>{
