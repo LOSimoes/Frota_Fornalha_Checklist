@@ -119,6 +119,11 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         } finally { busy = false; }
       }
       if (req.method !== 'GET') return json(res, 405, { message: 'Método não permitido.' });
+      if(url.pathname==='/termo'){
+        if(!session(req))return json(res,401,{message:'Entre no painel para emitir o termo.'});
+        const html=require('./damage-report.cjs').render(store.damageReport(url.searchParams.get('id')),now());
+        res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store'});return res.end(html);
+      }
       if(url.pathname==='/api/mileage'){
         if(!session(req))return json(res,401,{message:'Entre no painel para consultar a quilometragem.'});
         const id=url.searchParams.get('vehicle');if(id===null||!/^\d+$/.test(id))return json(res,400,{message:'Veículo inválido.'});

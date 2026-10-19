@@ -12,6 +12,7 @@ function app(){
   context.FornalhaMileage=context.window.FornalhaMileage;
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../daily-checks.js'),'utf8'),context);
   context.FornalhaDaily=context.window.FornalhaDaily;
+  context.inspectionPhotos=['frente','traseira','lateral_esquerda','lateral_direita'].map(item=>({item}));
   vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1],context);
   vm.runInContext(fs.readFileSync(path.join(__dirname,'../trip-rules.js'),'utf8'),context);
   context.FornalhaTrips=context.window.FornalhaTrips;

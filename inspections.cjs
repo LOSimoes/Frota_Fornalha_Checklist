@@ -7,7 +7,8 @@ const daily = require('./daily-checks.js');
 const vehicles = ['Master curta 01','Master curta 02','Master longa · 2018','Ducato · 2025','Mobi vendedor 01','Mobi vendedor 02'];
 const items = { pneus:'Pneus e rodas', freios:'Freios e direção', luzes:'Luzes e visibilidade', oleo:'Nível de óleo', motor:'Motor e painel', avarias:'Carroceria e portas', seguranca:'Cintos e equipamentos', frio:'Refrigeração' };
 const legacyItems=Object.keys(items);
-Object.assign(items,{painel:'Painel e alertas',cintos:'Cintos de segurança',ocorrencia:'Ocorrência avulsa'});
+const generalPhotos=['frente','traseira','lateral_esquerda','lateral_direita'];
+Object.assign(items,{frente:'Foto geral — frente',traseira:'Foto geral — traseira',lateral_esquerda:'Foto geral — lateral esquerda',lateral_direita:'Foto geral — lateral direita',painel:'Painel e alertas',cintos:'Cintos de segurança',ocorrencia:'Ocorrência avulsa'});
 const dateKey = time => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date(time));
 const invalid = message => { throw Object.assign(new Error(message), { status:400 }); };
 function jpegSize(data){
@@ -24,27 +25,27 @@ function jpegSize(data){
 }
 function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,name,refrigerated:id<4}))) {
   if (!value || typeof value !== 'object') invalid('Vistoria inválida.');
-  if (![1,2,3].includes(value.version) || typeof value.id !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value.id)) invalid('Identificação da vistoria inválida.');
+  if (![1,2,3,4].includes(value.version) || typeof value.id !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value.id)) invalid('Identificação da vistoria inválida.');
   if (typeof value.driver !== 'string' || !value.driver.trim() || value.driver.length > 100) invalid('Informe o motorista.');
   const vehicle = fleet.find(v=>v.id===value.vehicle);
   if (!Number.isInteger(value.vehicle) || !vehicle) invalid('Veículo inválido.');
-  const incident=value.version===3&&value.type==='Ocorrência';
-  if (!(value.version===3?['Saída','Ocorrência']:['Saída','Retorno']).includes(value.type)) invalid('Tipo de vistoria inválido.');
+  const incident=value.version>=3&&value.type==='Ocorrência';
+  if (!(value.version>=3?['Saída','Ocorrência']:['Saída','Retorno']).includes(value.type)) invalid('Tipo de vistoria inválido.');
   if (!(incident&&value.km===null)&&(!Number.isSafeInteger(value.km) || value.km < 0)) invalid('Quilometragem inválida.');
   if(value.kmNote!==undefined&&(typeof value.kmNote!=='string'||value.kmNote.length>500))invalid('Use até 500 caracteres na observação da quilometragem.');
   if (typeof value.inspectedAt !== 'string' || !Number.isFinite(Date.parse(value.inspectedAt)) || Date.parse(value.inspectedAt) > now + 300000) invalid('Data da vistoria inválida. Confira o relógio do aparelho.');
-  if(value.version===3&&(typeof value.inspector!=='string'||!value.inspector.trim()||value.inspector.length>100))invalid('Informe o responsável pelo registro (até 100 caracteres).');
+  if(value.version>=3&&(typeof value.inspector!=='string'||!value.inspector.trim()||value.inspector.length>100))invalid('Informe o responsável pelo registro (até 100 caracteres).');
   if(incident){
     if(!['Batida ou avaria','Defeito','Quebra na rua','Outro'].includes(value.category))invalid('Selecione o tipo da ocorrência.');
     if(typeof value.description!=='string'||!value.description.trim()||value.description.length>2000)invalid('Descreva a ocorrência (até 2.000 caracteres).');
     if(typeof value.location!=='string'||value.location.length>300)invalid('Informe um local de até 300 caracteres.');
     if(!['Não sei avaliar','Leve','Atenção','Crítico'].includes(value.severity))invalid('Gravidade inválida.');
-    return {version:3,id:value.id.toLowerCase(),driver:value.driver.trim(),driverId:value.driverId??null,inspector:value.inspector.trim(),vehicle:value.vehicle,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name,refrigerated:typeof value.refrigerated==='boolean'?value.refrigerated:!!vehicle.refrigerated,type:'Ocorrência',km:value.km,inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:null,category:value.category,description:value.description.trim(),location:value.location.trim(),severity:value.severity,answers:{ocorrencia:'Problema'},notes:{ocorrencia:value.description.trim()},levels:{ocorrencia:value.severity},alerts:[{item:value.category,kind:value.severity,note:value.description.trim()}]};
+    return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),driverId:value.driverId??null,inspector:value.inspector.trim(),vehicle:value.vehicle,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name,refrigerated:typeof value.refrigerated==='boolean'?value.refrigerated:!!vehicle.refrigerated,type:'Ocorrência',km:value.km,inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:null,category:value.category,description:value.description.trim(),location:value.location.trim(),severity:value.severity,answers:{ocorrencia:'Problema'},notes:{ocorrencia:value.description.trim()},levels:{ocorrencia:value.severity},alerts:[{item:value.category,kind:value.severity,note:value.description.trim()}]};
   }
   const refrigerated = value.version===1 ? value.vehicle<4 : typeof value.refrigerated==='boolean' ? value.refrigerated : !!vehicle.refrigerated;
   if (refrigerated && (typeof value.temperature !== 'number' || !Number.isFinite(value.temperature))) invalid('Temperatura inválida.');
   const answers = {}, notes = {}, levels = {}, alerts = [];
-  for (const id of [...legacyItems,...(value.version===3?['painel','cintos']:[])].filter(id => refrigerated || id !== 'frio')) {
+  for (const id of [...legacyItems,...(value.version>=3?['painel','cintos']:[])].filter(id => refrigerated || id !== 'frio')) {
     const answer = value.answers?.[id];
     if (!['OK','Problema','Não verifiquei'].includes(answer)) invalid(`Responda: ${items[id]}.`);
     answers[id] = answer;
@@ -58,7 +59,7 @@ function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,
     } else if (answer === 'Não verifiquei') alerts.push({ item:items[id], kind:'Não verificado',note:'Avaliar o item não verificado.' });
   }
   if (refrigerated && value.temperature >= -13) alerts.push({item:'Temperatura',kind:'Manutenção',note:`${value.temperature} °C — avaliar manutenção em breve.`});
-  return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),vehicle:value.vehicle,type:value.type,km:value.km,...(value.kmNote?.trim()?{kmNote:value.kmNote.trim()}:{}),inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:refrigerated?value.temperature:null,answers,notes,levels,alerts,...(value.version>=2?{driverId:value.driverId,refrigerated,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name}:{}),...(value.version===3?{inspector:value.inspector.trim()}:{} )};
+  return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),vehicle:value.vehicle,type:value.type,km:value.km,...(value.kmNote?.trim()?{kmNote:value.kmNote.trim()}:{}),inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:refrigerated?value.temperature:null,answers,notes,levels,alerts,...(value.version>=2?{driverId:value.driverId,refrigerated,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name}:{}),...(value.version>=3?{inspector:value.inspector.trim()}:{} )};
 }
 function openStore(dir) {
   const db = new DatabaseSync(path.join(dir, 'frota.sqlite'));
@@ -71,6 +72,7 @@ function openStore(dir) {
   db.exec('CREATE TABLE IF NOT EXISTS vehicles(id INTEGER PRIMARY KEY, name TEXT NOT NULL, refrigerated INTEGER NOT NULL, active INTEGER NOT NULL DEFAULT 1); CREATE TABLE IF NOT EXISTS drivers(id INTEGER PRIMARY KEY, name TEXT NOT NULL, active INTEGER NOT NULL DEFAULT 1, default_vehicle INTEGER)');
   if(!db.prepare('SELECT COUNT(*) AS n FROM vehicles').get().n) vehicles.forEach((name,id)=>db.prepare('INSERT INTO vehicles(id,name,refrigerated) VALUES(?,?,?)').run(id,name,id<4?1:0));
   if(!db.prepare('SELECT COUNT(*) AS n FROM drivers').get().n) ['Motorista 01 · exemplo','Motorista 02 · exemplo','Motorista 03 · exemplo','Vendedor 01 · exemplo','Vendedor 02 · exemplo'].forEach(name=>db.prepare('INSERT INTO drivers(name) VALUES(?)').run(name));
+  for(const column of ['cpf','cnh'])if(!db.prepare('PRAGMA table_info(drivers)').all().some(c=>c.name===column))db.exec(`ALTER TABLE drivers ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
   db.exec('CREATE TABLE IF NOT EXISTS driver_aliases(name TEXT PRIMARY KEY, driver_id INTEGER NOT NULL); INSERT OR IGNORE INTO driver_aliases SELECT name,id FROM drivers');
   db.exec('CREATE TABLE IF NOT EXISTS adjustments(seq INTEGER PRIMARY KEY, inspection_id TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL); CREATE TABLE IF NOT EXISTS occurrence_updates(seq INTEGER PRIMARY KEY, inspection_id TEXT NOT NULL, item TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL)');
   db.exec('CREATE INDEX IF NOT EXISTS adjustments_inspection ON adjustments(inspection_id,seq); CREATE INDEX IF NOT EXISTS occurrence_inspection ON occurrence_updates(inspection_id,item,seq)');
@@ -134,7 +136,7 @@ function openStore(dir) {
       const counts=new Map();recent.forEach(r=>counts.set(r.vehicle,(counts.get(r.vehicle)||0)+1));
       const ranked=[...counts].sort((a,b)=>b[1]-a[1]);
       const fixed=vs.find(v=>v.id===d.default_vehicle&&v.active);
-      return {id:d.id,name:d.name,active:!!d.active,trip:tripState(`id:${d.id}`),defaultVehicleId:d.default_vehicle,suggestedVehicleId:fixed?fixed.id:(ranked[0]?.[0]??null),suggestionSource:fixed?'Vínculo definido pelo gestor':ranked.length?'Mais usado nas últimas 30 vistorias':null};
+      return {id:d.id,name:d.name,...(all?{cpf:d.cpf,cnh:d.cnh}:{}),active:!!d.active,trip:tripState(`id:${d.id}`),defaultVehicleId:d.default_vehicle,suggestedVehicleId:fixed?fixed.id:(ranked[0]?.[0]??null),suggestionSource:fixed?'Vínculo definido pelo gestor':ranked.length?'Mais usado nas últimas 30 vistorias':null};
     });
     const pendingIds=new Set(drivers.map(d=>d.trip?.pending?.vehicle).filter(id=>id!==undefined));
     return {tripRules:false,workflow:'daily-departure',today,vehicles:all?vs:vs.filter(v=>v.active),drivers:all?drivers:drivers.filter(d=>d.active)};
@@ -149,17 +151,24 @@ function openStore(dir) {
       if(p.id===undefined)db.prepare('INSERT INTO vehicles(name,refrigerated,active) VALUES(?,?,?)').run(name,+p.refrigerated,+p.active);
       else db.prepare('UPDATE vehicles SET name=?,refrigerated=?,active=? WHERE id=?').run(name,+p.refrigerated,+p.active,p.id);
     }else{
+      const previous=p.id===undefined?{}:db.prepare('SELECT cpf,cnh FROM drivers WHERE id=?').get(p.id);
+      const cpf=p.cpf===undefined?(previous.cpf||''):String(p.cpf).replace(/[.\-\s]/g,'');
+      const cnh=p.cnh===undefined?(previous.cnh||''):String(p.cnh).replace(/\s/g,'');
+      if(cpf&&!/^\d{11}$/.test(cpf))invalid('CPF deve conter 11 dígitos.');
+      if(cnh&&!/^\d{11}$/.test(cnh))invalid('CNH deve conter 11 dígitos.');
       const alias=db.prepare('SELECT driver_id FROM driver_aliases WHERE lower(name)=lower(?)').get(name);if(alias&&alias.driver_id!==p.id)invalid('Este nome já pertence ao histórico de outro motorista. Use um nome diferente.');
       const v=p.defaultVehicleId??null;if(v!==null&&(!Number.isInteger(v)||!db.prepare('SELECT id FROM vehicles WHERE id=? AND active=1').get(v)))invalid('Escolha um veículo ativo para o vínculo.');
       if(p.id===undefined)db.prepare('INSERT INTO drivers(name,active,default_vehicle) VALUES(?,?,?)').run(name,+p.active,v);
       else db.prepare('UPDATE drivers SET name=?,active=?,default_vehicle=? WHERE id=?').run(name,+p.active,v,p.id);
       const id=p.id??db.prepare('SELECT id FROM drivers WHERE name=?').get(name).id;
+      db.prepare('UPDATE drivers SET cpf=?,cnh=? WHERE id=?').run(cpf,cnh,id);
       db.prepare('INSERT OR IGNORE INTO driver_aliases(name,driver_id) VALUES(?,?)').run(name,id);
     }
     return catalog(true);
   }
   return {
     catalog,saveCatalog,correct,updateOccurrence,
+    damageReport(id){const records=history();const record=records.find(r=>r.id===id);if(!record)invalid('Registro não encontrado.');const driver=record.driverId?db.prepare('SELECT name,cpf,cnh FROM drivers WHERE id=?').get(record.driverId):null;const previous=records.filter(r=>r.vehicle===record.vehicle&&r.type==='Saída'&&r.id!==record.id&&Date.parse(r.inspectedAt)<Date.parse(record.inspectedAt)).at(-1);return {record,driver,previous,items};},
     mileage(vehicleId){
       const vehicle=fleet().find(v=>v.id===vehicleId);if(!vehicle)invalid('Selecione um veículo cadastrado.');
       const records=history().filter(r=>r.vehicle===vehicleId&&Number.isSafeInteger(r.km));
@@ -176,13 +185,14 @@ function openStore(dir) {
       const photos=(raw.photos||[]).map(photo=>{
         if(!photo||typeof photo.id!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(photo.id)||ids.has(photo.id))invalid('Identificação de foto inválida.');
         ids.add(photo.id);
-        if(!Object.hasOwn(items,photo.item)||record.answers[photo.item]!=='Problema')invalid('Vincule a foto a um problema informado.');
+        if(!(raw.version>=4&&record.type==='Saída'&&generalPhotos.includes(photo.item))&&(!Object.hasOwn(items,photo.item)||record.answers[photo.item]!=='Problema'))invalid('Vincule a foto a um problema informado.');
         if(typeof photo.data!=='string'||photo.data.length>620000||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(photo.data))invalid('Formato de foto inválido.');
         const data=Buffer.from(photo.data.split(',')[1],'base64');
         if(data.length<4||data.length>450000||data[0]!==255||data[1]!==216||data[data.length-2]!==255||data[data.length-1]!==217)invalid('Foto JPEG inválida ou acima do limite.');
         const dimensions=jpegSize(data);if(!dimensions||!dimensions.width||!dimensions.height||dimensions.width>1600||dimensions.height>1600)invalid('Foto inválida ou com dimensões acima do limite.');
         return {id:photo.id.toLowerCase(),item:photo.item,data,sha256:crypto.createHash('sha256').update(data).digest('hex')};
       });
+      if(raw.version>=4&&record.type==='Saída'&&generalPhotos.some(item=>!photos.some(p=>p.item===item)))invalid('Inclua fotos gerais da frente, traseira e das duas laterais.');
       if(photos.length)record.photos=photos.map(p=>({id:p.id,item:p.item,sha256:p.sha256,bytes:p.data.length}));
       const payload = JSON.stringify(record);
       const existing = db.prepare('SELECT payload, received_at FROM inspections WHERE id=?').get(record.id);

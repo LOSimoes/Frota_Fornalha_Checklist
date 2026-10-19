@@ -9,14 +9,14 @@ function render(){
  }
  for(const button of document.querySelectorAll('[data-kind]'))button.addEventListener('click',()=>edit(button.dataset.kind,Number(button.dataset.id)));
 }
-function edit(kind,id){const r=catalog[kind].find(r=>r.id===id),prefix=kind==='vehicles'?'vehicle':'driver';$(prefix+'Id').value=r.id;$(prefix+'Name').value=r.name;$(prefix+'Active').checked=r.active;if(prefix==='vehicle')$('refrigerated').checked=r.refrigerated;else $('defaultVehicle').value=r.defaultVehicleId!==null&&catalog.vehicles.some(v=>v.id===r.defaultVehicleId&&v.active)?String(r.defaultVehicleId):'';$(prefix+'Name').focus();$(prefix+'Form').scrollIntoView({behavior:'smooth',block:'center'});}
+function edit(kind,id){const r=catalog[kind].find(r=>r.id===id),prefix=kind==='vehicles'?'vehicle':'driver';$(prefix+'Id').value=r.id;$(prefix+'Name').value=r.name;$(prefix+'Active').checked=r.active;if(prefix==='vehicle')$('refrigerated').checked=r.refrigerated;else {$('driverCpf').value=r.cpf||'';$('driverCnh').value=r.cnh||'';$('defaultVehicle').value=r.defaultVehicleId!==null&&catalog.vehicles.some(v=>v.id===r.defaultVehicleId&&v.active)?String(r.defaultVehicleId):'';}$(prefix+'Name').focus();$(prefix+'Form').scrollIntoView({behavior:'smooth',block:'center'});}
 async function load(){try{const response=await fetch('/api/catalog/admin');if(response.status===401){location.replace('/acesso');return;}if(!response.ok)throw new Error('Não foi possível carregar os cadastros.');catalog=await response.json();render();}catch(error){$('message').textContent=error.message;}}
 for(const kind of ['vehicle','driver']){
  $('new'+kind[0].toUpperCase()+kind.slice(1)).addEventListener('click',()=>{$(kind+'Form').reset();$(kind+'Id').value='';$(kind+'Name').focus();});
  $(kind+'Form').addEventListener('submit',async event=>{
   event.preventDefault();const button=event.submitter;button.disabled=true;$('message').textContent='';
   const id=$(kind+'Id').value,payload={kind,...(id!==''?{id:Number(id)}:{}),name:$(kind+'Name').value,active:$(kind+'Active').checked};
-  if(kind==='vehicle')payload.refrigerated=$('refrigerated').checked;else payload.defaultVehicleId=$('defaultVehicle').value===''?null:Number($('defaultVehicle').value);
+  if(kind==='vehicle')payload.refrigerated=$('refrigerated').checked;else {payload.cpf=$('driverCpf').value;payload.cnh=$('driverCnh').value;payload.defaultVehicleId=$('defaultVehicle').value===''?null:Number($('defaultVehicle').value);}
   try{const response=await fetch('/api/catalog',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(response.status===401){location.replace('/acesso');return;}const result=await response.json();if(!response.ok)throw new Error(result.message);catalog=result;$(kind+'Form').reset();$(kind+'Id').value='';render();$('message').textContent='Cadastro salvo. O aplicativo do motorista carregará a alteração ao ser reaberto com conexão.';}
   catch(error){$('message').textContent=error instanceof TypeError?'Sem conexão. O cadastro não foi salvo.':error.message;}finally{button.disabled=false;}
  });
