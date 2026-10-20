@@ -1,0 +1,31 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { openStore } = require('../inspections.cjs');
+const { bounds, selectEvidence, monthlyReport } = require('../scripts/monthly-report.cjs');
+test('fechamento seleciona problemas e dois dias anteriores do mesmo veículo inclusive na virada de mês', () => {
+  const make = (id, day, vehicle = 0, problem = false) => ({ id, vehicle, inspectedAt: day + 'T12:00:00Z', type: 'Saída', answers: { avarias: problem ? 'Problema' : 'OK' }, photos: [{ id, item: 'frente' }, ...(problem ? [{ id: id + '-problema', item: 'avarias' }] : [])] });
+  const records = [make('fora', '2026-09-27'), make('antes', '2026-09-29'), make('vespera', '2026-09-30'), make('evento', '2026-10-01', 0, true), make('outro', '2026-09-30', 1), make('normal', '2026-10-15'), make('fim', '2026-10-31'), make('novembro', '2026-11-02', 0, true)];
+  assert.deepEqual(selectEvidence(records, '2026-10').map(e => e.photo.id), ['antes', 'vespera', 'evento', 'evento-problema', 'fim']);
+  assert.deepEqual(bounds('2028-02'), { start: '2028-02-01', end: '2028-02-29' });
+  assert.throws(() => bounds('2026-13'));
+});
+test('PDF mensal verifica recibo, repete sem duplicar, impede fechamento precoce e mantém banco', async t => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fornalha-monthly-test-'));
+  t.after(() => { if (path.dirname(dir) === os.tmpdir() && path.basename(dir).startsWith('fornalha-monthly-test-')) fs.rmSync(dir, { recursive: true, force: true }); });
+  const source = path.join(dir, 'data'); fs.mkdirSync(source);
+  openStore(source).close();
+  const before = fs.readFileSync(path.join(source, 'frota.sqlite'));
+  const output = path.join(dir, 'pdf');
+  await assert.rejects(monthlyReport(source, output, '2026-09', { now: new Date('2026-10-02T12:00:00Z') }), /terceiro dia/);
+  const first = await monthlyReport(source, output, '2026-09', { now: new Date('2026-10-03T12:00:00Z') });
+  assert.equal(first.unchanged, false);
+  const second = await monthlyReport(source, output, '2026-09', { now: new Date('2026-10-04T12:00:00Z') });
+  assert.equal(second.unchanged, true);
+  assert.equal(first.target, second.target);
+  assert.deepEqual(fs.readFileSync(path.join(source, 'frota.sqlite')), before);
+  fs.appendFileSync(first.target, 'corrupt');
+  await assert.rejects(monthlyReport(source, output, '2026-09', { now: new Date('2026-10-04T12:00:00Z') }), /diverge/);
+});
