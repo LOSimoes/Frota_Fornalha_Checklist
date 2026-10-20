@@ -161,7 +161,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         '/assets/logo.png':['assets/logo.png','image/png'],
         '/assets/icon-256.png':['assets/icon-256.png','image/png'],
         '/assets/favicon.ico':['assets/favicon.ico','image/x-icon'],
-        '/': ['index.html'], '/index.html': ['index.html'], '/celular.html': ['celular.html'],
+        '/manager-navigation.js':['pages/manager-navigation.js','text/javascript; charset=utf-8'], '/': ['index.html'], '/index.html': ['index.html'], '/celular.html': ['celular.html'],
         '/outbox.js': ['outbox.js', 'text/javascript; charset=utf-8'], '/driver.js': ['driver.js', 'text/javascript; charset=utf-8'],
         '/sw.js': ['sw.js', 'text/javascript; charset=utf-8'],
         '/photos.js':['photos.js','text/javascript; charset=utf-8'], '/manifest.webmanifest':['manifest.webmanifest','application/manifest+json'], '/icon.svg':['icon.svg','image/svg+xml'],

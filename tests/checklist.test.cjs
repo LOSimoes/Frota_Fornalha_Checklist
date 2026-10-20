@@ -4,6 +4,13 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
+test('água e fluido hidráulico mantêm nível e abrem campos de problema',()=>{
+ const a=app();a.run("step=5;render();selectFluid('agua','Metade');selectFluid('hidraulico','Baixo')");
+ assert.equal(a.run('answers.agua'),'Problema');assert.equal(a.run('answers.hidraulico'),'Problema');
+ assert.equal(a.run('inspectionState.waterLevel'),'Metade');assert.equal(a.run('inspectionState.hydraulicLevel'),'Baixo');
+ assert.match(a.nodes.app.innerHTML,/Nível de fluido hidráulico/);assert.match(a.nodes.app.innerHTML,/O que você encontrou/);
+ a.run("selectFluid('agua','No nível')");assert.equal(a.run('answers.agua'),'OK');assert.equal(a.run('answers.hidraulico'),'Problema');
+});
 
 test('óleo selecionado abre problema e temperatura vazia permite revisão',()=>{
  const a=app();a.run("step=5;render();selectOil('Metade')");
@@ -70,8 +77,8 @@ test('mensagens distintas para nome ausente, km ausente e km inválido',()=>{
 
 test('fluxo completo da van, temperatura via evento e limites do aviso',()=>{
   const a=app();a.input('Motorista','Motorista 01 · exemplo');a.input('Quilometragem atual','35000');a.run('next()');
-  a.run("inspectionState.oilLevel='No nível'");
-  for(const ids of [['avarias'],['luzes'],['pneus','freios'],['seguranca','painel','cintos'],['motor','oleo']]){
+  a.run("inspectionState.oilLevel='No nível';inspectionState.waterLevel='No nível';inspectionState.hydraulicLevel='No nível'");
+  for(const ids of [['avarias'],['luzes'],['pneus','freios'],['seguranca','painel','cintos'],['motor','oleo','agua','hidraulico']]){
     for(const id of ids)a.run(`answers['${id}']='OK'`);
     a.run('next()');
   }
@@ -89,8 +96,8 @@ test('fluxo completo da van, temperatura via evento e limites do aviso',()=>{
 
 test('Mobi chega à revisão sem exigir refrigeração',()=>{
   const a=app();a.input('Motorista','Vendedor 01 · exemplo');a.input('Veículo','4');a.input('Quilometragem atual','150');a.run('next()');
-  a.run("inspectionState.oilLevel='No nível'");
-  for(const ids of [['avarias'],['luzes'],['pneus','freios'],['seguranca','painel','cintos'],['motor','oleo']]){
+  a.run("inspectionState.oilLevel='No nível';inspectionState.waterLevel='No nível';inspectionState.hydraulicLevel='No nível'");
+  for(const ids of [['avarias'],['luzes'],['pneus','freios'],['seguranca','painel','cintos'],['motor','oleo','agua','hidraulico']]){
     for(const id of ids)a.run(`answers['${id}']='OK'`);
     a.run('next()');
   }

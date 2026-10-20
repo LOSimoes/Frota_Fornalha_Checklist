@@ -8,7 +8,7 @@ const vehicles = ['Master curta 01','Master curta 02','Master longa · 2018','Du
 const items = { pneus:'Pneus e rodas', freios:'Freios e direção', luzes:'Luzes e visibilidade', oleo:'Nível de óleo', motor:'Motor e painel', avarias:'Carroceria e portas', seguranca:'Cintos e equipamentos', frio:'Refrigeração' };
 const legacyItems=Object.keys(items);
 const generalPhotos=['frente','traseira','lateral_esquerda','lateral_direita'];
-Object.assign(items,{frente:'Foto geral — frente',traseira:'Foto geral — traseira',lateral_esquerda:'Foto geral — lateral esquerda',lateral_direita:'Foto geral — lateral direita',painel:'Painel e alertas',cintos:'Cintos de segurança',ocorrencia:'Ocorrência avulsa'});
+Object.assign(items,{agua:'Nível de água / arrefecimento',hidraulico:'Nível de fluido hidráulico',frente:'Foto geral — frente',traseira:'Foto geral — traseira',lateral_esquerda:'Foto geral — lateral esquerda',lateral_direita:'Foto geral — lateral direita',painel:'Painel e alertas',cintos:'Cintos de segurança',ocorrencia:'Ocorrência avulsa'});
 const dateKey = time => new Intl.DateTimeFormat('en-CA', { timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit' }).format(new Date(time));
 const invalid = message => { throw Object.assign(new Error(message), { status:400 }); };
 function jpegSize(data){
@@ -25,7 +25,7 @@ function jpegSize(data){
 }
 function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,name,refrigerated:id<4}))) {
   if (!value || typeof value !== 'object') invalid('Vistoria inválida.');
-  if (![1,2,3,4,5].includes(value.version) || typeof value.id !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value.id)) invalid('Identificação da vistoria inválida.');
+  if (![1,2,3,4,5,6].includes(value.version) || typeof value.id !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value.id)) invalid('Identificação da vistoria inválida.');
   if (typeof value.driver !== 'string' || !value.driver.trim() || value.driver.length > 100) invalid('Informe o motorista.');
   const vehicle = fleet.find(v=>v.id===value.vehicle);
   if (!Number.isInteger(value.vehicle) || !vehicle) invalid('Veículo inválido.');
@@ -48,8 +48,14 @@ function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,
     const expected={'No nível':'OK','Metade':'Problema','Baixo':'Problema','Não verifiquei':'Não verifiquei'};
     if(!Object.hasOwn(expected,value.oilLevel)||value.answers?.oleo!==expected[value.oilLevel])invalid('Selecione um nível de óleo válido e coerente com a resposta.');
   }
+  if(value.version>=6){
+    const expected={'No nível':'OK','Metade':'Problema','Baixo':'Problema','Não verifiquei':'Não verifiquei'};
+    for(const [id,field] of [['agua','waterLevel'],['hidraulico','hydraulicLevel']]){
+      if(!Object.hasOwn(expected,value[field])||value.answers?.[id]!==expected[value[field]])invalid(`Selecione um nível válido para ${items[id]}.`);
+    }
+  }
   const answers = {}, notes = {}, levels = {}, alerts = [];
-  for (const id of [...legacyItems,...(value.version>=3?['painel','cintos']:[])].filter(id => refrigerated || id !== 'frio')) {
+  for (const id of [...legacyItems,...(value.version>=3?['painel','cintos']:[]),...(value.version>=6?['agua','hidraulico']:[])].filter(id => refrigerated || id !== 'frio')) {
     const answer = value.answers?.[id];
     if (!['OK','Problema','Não verifiquei'].includes(answer)) invalid(`Responda: ${items[id]}.`);
     answers[id] = answer;
@@ -59,11 +65,11 @@ function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,
       const level = value.levels?.[id] || 'Não sei avaliar';
       if (!['Não sei avaliar','Leve','Atenção','Crítico'].includes(level)) invalid('Gravidade inválida.');
       notes[id] = note.trim(); levels[id] = level;
-      alerts.push({ item:items[id], kind:level, note:(id==='oleo'&&value.version>=5?`Nível de óleo: ${value.oilLevel}. `:'')+notes[id] });
+      alerts.push({ item:items[id], kind:level, note:(id==='oleo'&&value.version>=5?`Nível de óleo: ${value.oilLevel}. `:'')+(value.version>=6&&['agua','hidraulico'].includes(id)?`Nível: ${value[id==='agua'?'waterLevel':'hydraulicLevel']}. `:'')+notes[id] });
     } else if (answer === 'Não verifiquei') alerts.push({ item:items[id], kind:'Não verificado',note:'Avaliar o item não verificado.' });
   }
   if (refrigerated && typeof value.temperature==='number' && value.temperature >= -13) alerts.push({item:'Temperatura',kind:'Manutenção',note:`${value.temperature} °C — avaliar manutenção em breve.`});
-  return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),vehicle:value.vehicle,type:value.type,km:value.km,...(value.kmNote?.trim()?{kmNote:value.kmNote.trim()}:{}),inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:refrigerated?value.temperature:null,answers,notes,levels,alerts,...(value.version>=2?{driverId:value.driverId,refrigerated,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name}:{}),...(value.version>=3?{inspector:value.inspector.trim()}:{} ),...(value.version>=5?{oilLevel:value.oilLevel}:{})};
+  return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),vehicle:value.vehicle,type:value.type,km:value.km,...(value.kmNote?.trim()?{kmNote:value.kmNote.trim()}:{}),inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:refrigerated?value.temperature:null,answers,notes,levels,alerts,...(value.version>=2?{driverId:value.driverId,refrigerated,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name}:{}),...(value.version>=3?{inspector:value.inspector.trim()}:{} ),...(value.version>=5?{oilLevel:value.oilLevel}:{}),...(value.version>=6?{waterLevel:value.waterLevel,hydraulicLevel:value.hydraulicLevel}:{})};
 }
 function openStore(dir) {
   const db = new DatabaseSync(path.join(dir, 'frota.sqlite'));
