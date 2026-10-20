@@ -5,6 +5,16 @@ const vm=require('node:vm');
 const path=require('node:path');
 const html=fs.readFileSync(path.join(__dirname,'../index.html'),'utf8');
 
+test('óleo selecionado abre problema e temperatura vazia permite revisão',()=>{
+ const a=app();a.run("step=5;render();selectOil('Metade')");
+ assert.equal(a.run('answers.oleo'),'Problema');assert.match(a.nodes.app.innerHTML,/O que você encontrou/);
+ a.run("selectOil('Baixo')");assert.equal(a.run('inspectionState.oilLevel'),'Baixo');
+ a.run("selectOil('No nível')");assert.equal(a.run('answers.oleo'),'OK');
+ a.run("selectOil('Não verifiquei')");assert.equal(a.run('answers.oleo'),'Não verifiquei');
+ a.run("step=6;inspectionState.temp='';answers.frio='OK';render();next()");
+ assert.equal(a.run('step'),7);assert.match(a.nodes.app.innerHTML,/Não informada/);assert.doesNotMatch(a.nodes.app.innerHTML,/0 °C/);
+});
+
 function app(){
   const nodes={};
   const context=vm.createContext({document:{getElementById(id){return nodes[id]??={classList:{toggle(){}},showModal(){this.open=true;}}}},window:{scrollTo(){}},completeInspection(){nodes.completed=true;}});
@@ -37,7 +47,7 @@ test('identificação da captura: eventos dos campos permitem avançar e voltar 
   a.input('Veículo','2');
   a.input('Quilometragem atual','35000');
   a.run('next()');
-  assert.match(a.nodes.app.innerHTML,/<h2>Lataria<\/h2>/);
+  assert.match(a.nodes.app.innerHTML,/<h2>Carroceria<\/h2>/);
   a.run('step--;render()');
   assert.match(a.nodes.app.innerHTML,/<option selected>Motorista 03 · exemplo<\/option>/);
   assert.equal(a.run('inspectionState.type'),'Saída');
@@ -60,6 +70,7 @@ test('mensagens distintas para nome ausente, km ausente e km inválido',()=>{
 
 test('fluxo completo da van, temperatura via evento e limites do aviso',()=>{
   const a=app();a.input('Motorista','Motorista 01 · exemplo');a.input('Quilometragem atual','35000');a.run('next()');
+  a.run("inspectionState.oilLevel='No nível'");
   for(const ids of [['avarias'],['luzes'],['pneus','freios'],['seguranca','painel','cintos'],['motor','oleo']]){
     for(const id of ids)a.run(`answers['${id}']='OK'`);
     a.run('next()');
@@ -67,10 +78,10 @@ test('fluxo completo da van, temperatura via evento e limites do aviso',()=>{
   assert.match(a.nodes.app.innerHTML,/<h2>Refrigeração<\/h2>/);
   a.run("answers.frio='OK'");
   for(const [t,warn] of [[-18,false],[-16,false],[-14,false],[-13.1,false],[-13,true],[-12,true],[-10,true],[-9,true],[-5,true],[0,true],[5,true],['',false],[' ',false],['abc',false]]){
-    a.input('Temperatura indicada (°C)',String(t));
+    a.input('Temperatura indicada (°C) — opcional',String(t));
     assert.equal(a.nodes.tempNotice.innerHTML.includes('avaliar manutenção'),warn);
   }
-  a.input('Temperatura indicada (°C)','-12');a.run('next()');
+  a.input('Temperatura indicada (°C) — opcional','-12');a.run('next()');
   assert.match(a.nodes.app.innerHTML,/Confira antes de concluir/);
   assert.match(a.nodes.app.innerHTML,/-12 °C/);
   a.run('next()');assert.equal(a.nodes.completed,true);
@@ -78,6 +89,7 @@ test('fluxo completo da van, temperatura via evento e limites do aviso',()=>{
 
 test('Mobi chega à revisão sem exigir refrigeração',()=>{
   const a=app();a.input('Motorista','Vendedor 01 · exemplo');a.input('Veículo','4');a.input('Quilometragem atual','150');a.run('next()');
+  a.run("inspectionState.oilLevel='No nível'");
   for(const ids of [['avarias'],['luzes'],['pneus','freios'],['seguranca','painel','cintos'],['motor','oleo']]){
     for(const id of ids)a.run(`answers['${id}']='OK'`);
     a.run('next()');

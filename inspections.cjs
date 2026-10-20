@@ -25,7 +25,7 @@ function jpegSize(data){
 }
 function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,name,refrigerated:id<4}))) {
   if (!value || typeof value !== 'object') invalid('Vistoria inválida.');
-  if (![1,2,3,4].includes(value.version) || typeof value.id !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value.id)) invalid('Identificação da vistoria inválida.');
+  if (![1,2,3,4,5].includes(value.version) || typeof value.id !== 'string' || !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(value.id)) invalid('Identificação da vistoria inválida.');
   if (typeof value.driver !== 'string' || !value.driver.trim() || value.driver.length > 100) invalid('Informe o motorista.');
   const vehicle = fleet.find(v=>v.id===value.vehicle);
   if (!Number.isInteger(value.vehicle) || !vehicle) invalid('Veículo inválido.');
@@ -43,7 +43,11 @@ function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,
     return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),driverId:value.driverId??null,inspector:value.inspector.trim(),vehicle:value.vehicle,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name,refrigerated:typeof value.refrigerated==='boolean'?value.refrigerated:!!vehicle.refrigerated,type:'Ocorrência',km:value.km,inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:null,category:value.category,description:value.description.trim(),location:value.location.trim(),severity:value.severity,answers:{ocorrencia:'Problema'},notes:{ocorrencia:value.description.trim()},levels:{ocorrencia:value.severity},alerts:[{item:value.category,kind:value.severity,note:value.description.trim()}]};
   }
   const refrigerated = value.version===1 ? value.vehicle<4 : typeof value.refrigerated==='boolean' ? value.refrigerated : !!vehicle.refrigerated;
-  if (refrigerated && (typeof value.temperature !== 'number' || !Number.isFinite(value.temperature))) invalid('Temperatura inválida.');
+  if (refrigerated && !(value.version>=5&&value.temperature===null) && (typeof value.temperature !== 'number' || !Number.isFinite(value.temperature))) invalid('Temperatura inválida.');
+  if(value.version>=5){
+    const expected={'No nível':'OK','Metade':'Problema','Baixo':'Problema','Não verifiquei':'Não verifiquei'};
+    if(!Object.hasOwn(expected,value.oilLevel)||value.answers?.oleo!==expected[value.oilLevel])invalid('Selecione um nível de óleo válido e coerente com a resposta.');
+  }
   const answers = {}, notes = {}, levels = {}, alerts = [];
   for (const id of [...legacyItems,...(value.version>=3?['painel','cintos']:[])].filter(id => refrigerated || id !== 'frio')) {
     const answer = value.answers?.[id];
@@ -55,11 +59,11 @@ function validate(value, now = Date.now(), fleet = vehicles.map((name,id)=>({id,
       const level = value.levels?.[id] || 'Não sei avaliar';
       if (!['Não sei avaliar','Leve','Atenção','Crítico'].includes(level)) invalid('Gravidade inválida.');
       notes[id] = note.trim(); levels[id] = level;
-      alerts.push({ item:items[id], kind:level, note:notes[id] });
+      alerts.push({ item:items[id], kind:level, note:(id==='oleo'&&value.version>=5?`Nível de óleo: ${value.oilLevel}. `:'')+notes[id] });
     } else if (answer === 'Não verifiquei') alerts.push({ item:items[id], kind:'Não verificado',note:'Avaliar o item não verificado.' });
   }
-  if (refrigerated && value.temperature >= -13) alerts.push({item:'Temperatura',kind:'Manutenção',note:`${value.temperature} °C — avaliar manutenção em breve.`});
-  return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),vehicle:value.vehicle,type:value.type,km:value.km,...(value.kmNote?.trim()?{kmNote:value.kmNote.trim()}:{}),inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:refrigerated?value.temperature:null,answers,notes,levels,alerts,...(value.version>=2?{driverId:value.driverId,refrigerated,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name}:{}),...(value.version>=3?{inspector:value.inspector.trim()}:{} )};
+  if (refrigerated && typeof value.temperature==='number' && value.temperature >= -13) alerts.push({item:'Temperatura',kind:'Manutenção',note:`${value.temperature} °C — avaliar manutenção em breve.`});
+  return {version:value.version,id:value.id.toLowerCase(),driver:value.driver.trim(),vehicle:value.vehicle,type:value.type,km:value.km,...(value.kmNote?.trim()?{kmNote:value.kmNote.trim()}:{}),inspectedAt:new Date(value.inspectedAt).toISOString(),temperature:refrigerated?value.temperature:null,answers,notes,levels,alerts,...(value.version>=2?{driverId:value.driverId,refrigerated,vehicleName:typeof value.vehicleName==='string'&&value.vehicleName.trim()&&value.vehicleName.length<=100?value.vehicleName.trim():vehicle.name}:{}),...(value.version>=3?{inspector:value.inspector.trim()}:{} ),...(value.version>=5?{oilLevel:value.oilLevel}:{})};
 }
 function openStore(dir) {
   const db = new DatabaseSync(path.join(dir, 'frota.sqlite'));
