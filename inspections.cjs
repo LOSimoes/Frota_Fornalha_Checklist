@@ -125,7 +125,7 @@ function openStore(dir) {
     return {ok:true};
   }
   function updateOccurrence(p,now=Date.now()){
-    if(!p||!['Aberto','Em avaliação','Manutenção agendada','Resolvido'].includes(p.status)||typeof p.note!=='string'||!p.note.trim()||p.note.length>1000)invalid('Selecione a situação e descreva a ação (até 1.000 caracteres).');
+    if(!p||!['Aberto','Em avaliação','Manutenção agendada','Em manutenção','Resolvido'].includes(p.status)||typeof p.note!=='string'||!p.note.trim()||p.note.length>1000)invalid('Selecione a situação e descreva a ação (até 1.000 caracteres).');
     const row=db.prepare('SELECT payload,received_at FROM inspections WHERE id=?').get(p.id),r=row&&effective(row);
     if(!r||r.cancelled||!r.alerts.some(a=>a.item===p.item&&a.kind!=='Não verificado'))invalid('Ocorrência não encontrada.');
     const count=db.prepare('SELECT COUNT(*) AS n FROM occurrence_updates WHERE inspection_id=? AND item=?').get(p.id,p.item).n;

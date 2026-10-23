@@ -4,7 +4,7 @@ function managerView(value){
  const view=allowed.includes(value)?value:'overview';
  document.body.dataset.view=view;
  document.querySelectorAll('[data-manager-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.managerView===view)));
- const labels={overview:['Visão geral','Resumo do período e conferências pendentes.'],issues:['Ocorrências','Batidas, avarias e sinistros. Itens classificados como Outro precisam de revisão.'],maintenance:['Manutenção','Defeitos e necessidades de manutenção identificados nas vistorias.'],records:['Vistorias e documentos','Abra um registro para ver fotos, corrigir dados ou emitir o termo.'],fleet:['Minha frota','Últimas leituras e histórico de cada veículo, sem filtro de período.'],settings:['Configurações','Cadastros e situação dos serviços de aviso.']};
+ const labels={overview:['Visão geral','Prioridades por veículo, problemas pendentes e acompanhamento do período.'],issues:['Ocorrências','Batidas, avarias e sinistros. Itens classificados como Outro precisam de revisão.'],maintenance:['Manutenção','Defeitos e necessidades de manutenção identificados nas vistorias.'],records:['Vistorias','Histórico completo, inclusive vistorias sem problemas. Consulte respostas, fotos e documentos.'],fleet:['Minha frota','Últimas leituras e histórico de cada veículo, sem filtro de período.'],settings:['Configurações','Cadastros e situação dos serviços de aviso.']};
  document.querySelector('main>h1').textContent=labels[view][0];
  document.querySelector('main>p').textContent=labels[view][1];
  document.querySelectorAll('[data-view-panel]').forEach(el=>el.hidden=!el.dataset.viewPanel.split(' ').includes(view));
@@ -14,7 +14,7 @@ document.querySelectorAll('[data-manager-view]').forEach(b=>b.addEventListener('
 window.addEventListener('DOMContentLoaded',()=>managerView('overview'));
 const issueSelect=document.createElement('select');
 issueSelect.id='issueStatus';
-for(const [value,label] of [['','Todas as situações'],['pending','Pendentes (exceto resolvidas)'],['Aberto','Aberto'],['Em avaliação','Em avaliação'],['Manutenção agendada','Manutenção agendada'],['Resolvido','Resolvido']]){
+for(const [value,label] of [['','Todas as situações'],['pending','Pendentes (exceto resolvidas)'],['Aberto','Aberto'],['Em avaliação','Em avaliação'],['Manutenção agendada','Manutenção agendada'],['Em manutenção','Em manutenção'],['Resolvido','Resolvido']]){
  const option=document.createElement('option');option.value=value;option.textContent=label;issueSelect.append(option);
 }
 const issueLabel=document.createElement('label');issueLabel.className='no-print';issueLabel.textContent='Situação da ocorrência';issueLabel.append(issueSelect);

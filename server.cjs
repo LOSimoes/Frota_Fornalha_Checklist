@@ -165,6 +165,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         '/mileage.js':['mileage.js','text/javascript; charset=utf-8'],
         '/trip-rules.js':['trip-rules.js','text/javascript; charset=utf-8'],
         '/brand.css':['brand.css','text/css; charset=utf-8'],
+        '/fleet-overview.js':['fleet-overview.js','text/javascript; charset=utf-8'],
         '/report-types.js':['report-types.js','text/javascript; charset=utf-8'],
         '/assets/logo.png':['assets/logo.png','image/png'],
         '/assets/icon-256.png':['assets/icon-256.png','image/png'],
