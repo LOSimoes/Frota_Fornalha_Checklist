@@ -1,7 +1,10 @@
+const issueSelections={maintenance:'pending'};
 // Navigation changes presentation only; filters and report data keep their scope.
 function managerView(value){
  const allowed=['overview','issues','maintenance','workshop','records','fleet','settings'];
  const view=allowed.includes(value)?value:'overview';
+ if(document.body.dataset.view)issueSelections[document.body.dataset.view]=issueSelect.value;
+ issueSelect.value=issueSelections[view]??'';
  document.body.dataset.view=view;
  document.querySelectorAll('[data-manager-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.managerView===view)));
  const labels={overview:['Visão geral','Prioridades por veículo, problemas pendentes e acompanhamento do período.'],issues:['Ocorrências','Batidas, avarias e sinistros. Itens classificados como Outro precisam de revisão.'],maintenance:['Manutenção','Defeitos e necessidades de manutenção identificados nas vistorias.'],workshop:['Ordens e pendências','Serviços, relatos vinculados e situação operacional. Todo o histórico, sem filtro de datas.'],records:['Vistorias','Histórico completo, inclusive vistorias sem problemas. Consulte respostas, fotos e documentos.'],fleet:['Minha frota','Últimas leituras e histórico de cada veículo, sem filtro de período.'],settings:['Configurações','Cadastros e situação dos serviços de aviso.']};
@@ -25,12 +28,23 @@ function filterManagerIssues(){
  const selected=issueSelect.value;
  const view=document.body.dataset.view;
  const category=o=>{const r=reportData.records.find(r=>r.id===o.id);return r?ReportTypes.kind(r,Object.keys(reportData.items).find(k=>reportData.items[k]===o.item)||o.item):'review';};
+ const scoped=reportData.occurrences.filter(o=>(view==='issues'?category(o)!=='maintenance':view==='maintenance'?category(o)==='maintenance':true));
  const list=reportData.occurrences.filter(o=>(view==='issues'?category(o)!=='maintenance':view==='maintenance'?category(o)==='maintenance':true)&&(!selected||(selected==='pending'?o.status!=='Resolvido':o.status===selected)));
  document.querySelector('.issues-panel h2').textContent=view==='maintenance'?'Itens para manutenção':view==='issues'?'Avarias e sinistros':'Defeitos e alertas';
  if(view!=='issues'&&view!=='maintenance'){document.getElementById('periodTitle').textContent=`Relatório de ${pretty(reportData.start)} a ${pretty(reportData.end)} · ${reportData.vehicleLabel}`;document.getElementById('count').textContent=`${reportData.total} vistorias · ${reportData.incidentCount} registros avulsos`;}
  printButton.textContent=view==='maintenance'?'Imprimir manutenção':view==='issues'?'Imprimir ocorrências':'Imprimir resumo';
- document.getElementById('occurrences').innerHTML=rows(list);
+ issueLabel.hidden=view==='maintenance';
+ document.getElementById('occurrences').innerHTML=view==='maintenance'?MaintenanceBoard.render(list,scoped,selected,occurrenceControls,o=>documentLinks(reportData.records.find(r=>r.id===o.id),o.item)):rows(list);
  if(view==='issues'||view==='maintenance'){document.getElementById('periodTitle').textContent=`${view==='issues'?'Ocorrências':'Manutenção'} · ${pretty(reportData.start)} a ${pretty(reportData.end)} · ${reportData.vehicleLabel}`;document.getElementById('count').textContent=`${list.length} apontamentos nesta aba e situação selecionada`; }
  summary.textContent=`${list.length} relatos exibidos · ${issueSelect.selectedOptions[0].textContent}. Período e veículo conforme o relatório.`;
 }
 issueSelect.addEventListener('change',filterManagerIssues);
+
+document.getElementById('occurrences').addEventListener('click',event=>{
+ const filter=event.target.closest('[data-maintenance-filter]');if(filter){issueSelect.value=filter.dataset.maintenanceFilter;filterManagerIssues();return;}
+ const orders=event.target.closest('[data-maintenance-orders]');if(orders){document.getElementById('workshopVehicle').value=orders.dataset.maintenanceOrders;managerView('workshop');renderWorkshop();}
+});
+
+let maintenancePrintClosed=[];
+window.addEventListener('beforeprint',()=>{maintenancePrintClosed=[...document.querySelectorAll('.maintenance-item:not([open])')];maintenancePrintClosed.forEach(el=>el.open=true);});
+window.addEventListener('afterprint',()=>{maintenancePrintClosed.forEach(el=>el.open=false);maintenancePrintClosed=[];});
