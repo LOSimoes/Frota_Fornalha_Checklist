@@ -26,3 +26,6 @@ body[data-view="fleet"] #report,body[data-view="settings"] #report{display:none}
 }
 @media(max-width:700px){.manager-nav{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:6px;margin-bottom:20px}.manager-nav button{font-size:13px;padding:10px;white-space:normal}.filter-panel{padding:12px}.stats{grid-template-columns:1fr}.stats .card{display:flex;justify-content:space-between;align-items:center}.stats strong{margin:0;font-size:28px}header .actions a{font-size:12px}}
 @media print{.filter-panel,.manager-nav{display:none!important}}
+
+body[data-view="maintenance"] .frequency-panel,body[data-view="maintenance"] .records-panel,body[data-view="maintenance"] .stats,body[data-view="issues"] .stats,body[data-view="issues"] .unverified-panel{display:none}
+@media print{body[data-view="issues"] .frequency-panel,body[data-view="issues"] .records-panel,body[data-view="maintenance"] .unverified-panel{display:none!important}}

@@ -119,6 +119,13 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         } finally { busy = false; }
       }
       if (req.method !== 'GET') return json(res, 405, { message: 'Método não permitido.' });
+      if(url.pathname==='/relatorio.pdf'){
+        if(!session(req))return json(res,401,{message:'Entre no painel para emitir o documento.'});
+        const type=url.searchParams.get('type');
+        if(!['damage','maintenance'].includes(type))return json(res,400,{message:'Tipo de relatório inválido.'});
+        const bytes=await require('./vehicle-report-pdf.cjs').render(store.damageReport(url.searchParams.get('id')),type,id=>store.photo(id),now());
+        res.writeHead(200,{'Content-Type':'application/pdf','Content-Disposition':`inline; filename="fornalha-${type}.pdf"`,'Cache-Control':'no-store'});return res.end(bytes);
+      }
       if(url.pathname==='/termo'){
         if(!session(req))return json(res,401,{message:'Entre no painel para emitir o termo.'});
         const html=require('./damage-report.cjs').render(store.damageReport(url.searchParams.get('id')),now());
@@ -158,6 +165,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         '/mileage.js':['mileage.js','text/javascript; charset=utf-8'],
         '/trip-rules.js':['trip-rules.js','text/javascript; charset=utf-8'],
         '/brand.css':['brand.css','text/css; charset=utf-8'],
+        '/report-types.js':['report-types.js','text/javascript; charset=utf-8'],
         '/assets/logo.png':['assets/logo.png','image/png'],
         '/assets/icon-256.png':['assets/icon-256.png','image/png'],
         '/assets/favicon.ico':['assets/favicon.ico','image/x-icon'],

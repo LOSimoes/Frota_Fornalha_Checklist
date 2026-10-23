@@ -40,6 +40,8 @@ test('acesso privado: configuração, sessão, limites, saída e persistência',
   }
   const password = 'Senha apenas de teste 2026!';
   assert.equal((await call('/termo?id=teste')).status,401);
+  assert.equal((await call('/relatorio.pdf?type=maintenance&id=teste')).status,401);
+  assert.equal((await call('/relatorio.pdf?type=damage&id=teste')).status,401);
   let response = await call('/gestor'); assert.equal(response.status, 303); assert.equal(response.headers.get('location'), '/acesso');
   for (const url of ['/pages/gestor.html', '/data/admin.json', '/server.cjs', '/.git/config']) assert.equal((await call(url)).status, 404);
   assert.equal((await call('/', { host: 'outro-site.example' })).status, 400);
