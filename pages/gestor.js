@@ -30,7 +30,7 @@ document.getElementById('logout').addEventListener('click',async()=>{try{if(!(aw
 async function initialize(){try{const response=await fetch('/api/catalog/admin');if(response.status===401){location.replace('/acesso');return;}if(!response.ok)throw new Error();const catalog=await response.json();renderMileage(catalog);const selected=vehicleFilter.value;vehicleFilter.innerHTML='<option value="">Todos os veículos</option>'+catalog.vehicles.map(v=>`<option value="${v.id}">${esc(v.name)}${v.active?'':' (inativo)'}</option>`).join('');vehicleFilter.value=selected;}catch{document.getElementById('mileageStatus').textContent='Não foi possível atualizar as leituras. Os valores anteriores podem estar desatualizados.';document.getElementById('message').textContent='Não foi possível carregar os veículos. Recarregue para filtrar.';}if(!start.value)preset('month');else refresh();}
 window.addEventListener('pageshow',initialize);
 function renderMileage(catalog){
- adminCatalog=catalog;
+ adminCatalog=catalog;if(typeof renderWorkshop==='function')renderWorkshop();
  const km=n=>Number(n).toLocaleString('pt-BR')+' km';
  document.getElementById('mileageStatus').textContent='Atualizado em '+time(new Date());
  document.getElementById('mileageCards').innerHTML=catalog.vehicles.map(v=>`<article class="mileage-car"><h3>${esc(v.name)}${v.active?'':' (inativo)'}</h3>${vehicleStatus(catalog,v)}<strong class="mileage-number">${v.lastReading?km(v.lastReading.km):'Sem leitura recebida'}</strong><p class="muted">${v.lastReading?`${esc(v.lastReading.type)} · ${time(v.lastReading.inspectedAt)}`:'A primeira vistoria preenche este histórico.'}</p><p>${v.lastReturn?`Último retorno histórico: <strong>${km(v.lastReturn.km)}</strong><br><span class="muted">${time(v.lastReturn.inspectedAt)}</span>`:'Conferência de saída: não exige retorno.'}</p><details><summary>Histórico de quilometragem</summary><button type="button" class="secondary" data-mileage="${v.id}">Carregar histórico</button><div id="history-${v.id}" class="mileage-history" aria-live="polite"></div></details></article>`).join('');
@@ -53,7 +53,7 @@ const editor=document.createElement('dialog');editor.setAttribute('aria-labelled
 function openEditor(title,fields,onSubmit){
  editor.innerHTML=`<form><h2 id="editTitle">${esc(title)}</h2>${fields}<p class="edit-error" role="alert"></p><div class="actions"><button type="button" data-close>Voltar sem salvar</button><button type="submit">Salvar alteração</button></div></form>`;
  editor.querySelector('[data-close]').onclick=()=>editor.close();
- editor.querySelector('form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('[type=submit]');button.disabled=true;try{await onSubmit(new FormData(e.target));editor.close();await initialize();}catch(error){editor.querySelector('.edit-error').textContent=error.message;}finally{button.disabled=false;}};
+ editor.querySelector('form').onsubmit=async e=>{e.preventDefault();const button=e.target.querySelector('[type=submit]');button.disabled=true;try{await onSubmit(new FormData(e.target));editor.close();await initialize();if(typeof loadWorkshop==='function')await loadWorkshop();}catch(error){editor.querySelector('.edit-error').textContent=error.message;}finally{button.disabled=false;}};
  editor.showModal();
 }
 async function managerPost(url,payload){const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await r.json();if(!r.ok)throw new Error(data.message||'Não foi possível salvar.');}

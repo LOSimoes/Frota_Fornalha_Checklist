@@ -1,10 +1,10 @@
 // Navigation changes presentation only; filters and report data keep their scope.
 function managerView(value){
- const allowed=['overview','issues','maintenance','records','fleet','settings'];
+ const allowed=['overview','issues','maintenance','workshop','records','fleet','settings'];
  const view=allowed.includes(value)?value:'overview';
  document.body.dataset.view=view;
  document.querySelectorAll('[data-manager-view]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.managerView===view)));
- const labels={overview:['Visão geral','Prioridades por veículo, problemas pendentes e acompanhamento do período.'],issues:['Ocorrências','Batidas, avarias e sinistros. Itens classificados como Outro precisam de revisão.'],maintenance:['Manutenção','Defeitos e necessidades de manutenção identificados nas vistorias.'],records:['Vistorias','Histórico completo, inclusive vistorias sem problemas. Consulte respostas, fotos e documentos.'],fleet:['Minha frota','Últimas leituras e histórico de cada veículo, sem filtro de período.'],settings:['Configurações','Cadastros e situação dos serviços de aviso.']};
+ const labels={overview:['Visão geral','Prioridades por veículo, problemas pendentes e acompanhamento do período.'],issues:['Ocorrências','Batidas, avarias e sinistros. Itens classificados como Outro precisam de revisão.'],maintenance:['Manutenção','Defeitos e necessidades de manutenção identificados nas vistorias.'],workshop:['Ordens e pendências','Serviços, relatos vinculados e situação operacional. Todo o histórico, sem filtro de datas.'],records:['Vistorias','Histórico completo, inclusive vistorias sem problemas. Consulte respostas, fotos e documentos.'],fleet:['Minha frota','Últimas leituras e histórico de cada veículo, sem filtro de período.'],settings:['Configurações','Cadastros e situação dos serviços de aviso.']};
  document.querySelector('main>h1').textContent=labels[view][0];
  document.querySelector('main>p').textContent=labels[view][1];
  document.querySelectorAll('[data-view-panel]').forEach(el=>el.hidden=!el.dataset.viewPanel.split(' ').includes(view));

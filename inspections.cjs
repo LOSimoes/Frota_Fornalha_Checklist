@@ -176,8 +176,9 @@ function openStore(dir) {
     }
     return catalog(true);
   }
+  const workshop=require('./workshop.cjs').create(db,{history,fleet,updateOccurrence,jpegSize});
   return {
-    catalog,saveCatalog,correct,updateOccurrence,
+    catalog,saveCatalog,correct,updateOccurrence,workshop,
     damageReport(id){const records=history();const record=records.find(r=>r.id===id);if(!record)invalid('Registro não encontrado.');const driver=record.driverId?db.prepare('SELECT name,cpf,cnh FROM drivers WHERE id=?').get(record.driverId):null;const previous=records.filter(r=>r.vehicle===record.vehicle&&r.type==='Saída'&&r.id!==record.id&&Date.parse(r.inspectedAt)<Date.parse(record.inspectedAt)).at(-1);return {record,driver,previous,items};},
     mileage(vehicleId){
       const vehicle=fleet().find(v=>v.id===vehicleId);if(!vehicle)invalid('Selecione um veículo cadastrado.');

@@ -34,11 +34,13 @@ test('acesso privado: configuração, sessão, limites, saída e persistência',
     const value=payload || (password!==undefined?{password}:undefined);
     return fetch(base + url, { method, redirect: 'manual', headers: { Host: host, Origin: requestOrigin, ...(value ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}), ...(token ? { 'X-Setup-Token': token } : {}) }, ...(value ? { body: JSON.stringify(value) } : {}) });
   }
-  for(const endpoint of ['/api/corrections','/api/occurrences']){
+  for(const endpoint of ['/api/corrections','/api/occurrences','/api/workshop']){
     assert.equal((await call(endpoint,{method:'POST',payload:{}})).status,401);
     assert.equal((await call(endpoint,{method:'POST',payload:{},requestOrigin:'https://outro.example'})).status,403);
   }
   const password = 'Senha apenas de teste 2026!';
+  assert.equal((await call('/api/workshop')).status,401);
+  assert.equal((await call('/api/work-evidence/teste')).status,401);
   assert.equal((await call('/termo?id=teste')).status,401);
   assert.equal((await call('/relatorio.pdf?type=maintenance&id=teste')).status,401);
   assert.equal((await call('/relatorio.pdf?type=damage&id=teste')).status,401);

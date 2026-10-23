@@ -67,6 +67,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
       const url = new URL(req.url, allowedOrigin);
       if (req.method === 'POST') {
         if (req.headers.origin !== allowedOrigin) return json(res, 403, { message: 'Origem não autorizada.' });
+        if(url.pathname==='/api/workshop'){if(!session(req))return json(res,401,{message:'Entre no painel.'});return json(res,200,store.workshop.save(await body(req,6500000),now()));}
         if(['/api/corrections','/api/occurrences'].includes(url.pathname)){
           if(!session(req))return json(res,401,{message:'Entre no painel para alterar registros.'});
           const p=await body(req);return json(res,200,url.pathname==='/api/corrections'?store.correct(p,now()):store.updateOccurrence(p,now()));
@@ -119,6 +120,16 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         } finally { busy = false; }
       }
       if (req.method !== 'GET') return json(res, 405, { message: 'Método não permitido.' });
+      if(url.pathname==='/api/workshop'){
+        if(!session(req))return json(res,401,{message:'Entre no painel.'});
+        const report=store.list('0001-01-01','9999-12-31');
+        return json(res,200,{occurrences:report.occurrences,orders:store.workshop.orders(),operations:store.workshop.operations()});
+      }
+      if(url.pathname.startsWith('/api/work-evidence/')){
+        if(!session(req))return json(res,401,{message:'Entre no painel.'});
+        const photo=store.workshop.evidence(url.pathname.split('/').pop());if(!photo)return json(res,404,{message:'Foto não encontrada.'});
+        res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'no-store'});return res.end(photo.data);
+      }
       if(url.pathname==='/relatorio.pdf'){
         if(!session(req))return json(res,401,{message:'Entre no painel para emitir o documento.'});
         const type=url.searchParams.get('type');
@@ -165,6 +176,7 @@ async function createApplication({ dataDir = path.join(ROOT, 'data'), origin = '
         '/mileage.js':['mileage.js','text/javascript; charset=utf-8'],
         '/trip-rules.js':['trip-rules.js','text/javascript; charset=utf-8'],
         '/brand.css':['brand.css','text/css; charset=utf-8'],
+        '/workshop.js':['pages/workshop.js','text/javascript; charset=utf-8'],
         '/fleet-overview.js':['fleet-overview.js','text/javascript; charset=utf-8'],
         '/report-types.js':['report-types.js','text/javascript; charset=utf-8'],
         '/assets/logo.png':['assets/logo.png','image/png'],
