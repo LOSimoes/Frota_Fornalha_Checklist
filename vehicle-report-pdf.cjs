@@ -34,7 +34,7 @@ async function render(data,type,getPhoto,now=Date.now()){
  function identity(){text(r.vehicleName,true,12);text(`Registro: ${date(r.inspectedAt)} | Quilometragem: ${r.km??'Não informada'}`);text(`Motorista: ${r.driver} | Conferência: ${r.inspector||'Não informada'}`);text(`Protocolo: ${r.id}`,false,8);if(r.cancelled)text('REGISTRO CANCELADO — consulta histórica',true);y-=10;}
  function reports(){for(const e of selected){text(`${e.label} | ${e.severity}`,true);text(e.note||'Sem relato adicional.');y-=6;}}
  async function photos(list,label,source){
-  if(type==='maintenance'&&y>330&&list.length<=2){y-=14;text(label,true,12);}else newPage(label);text(`Veículo: ${source?.vehicleName||r.vehicleName}`,true);if(source)text(`Registro: ${date(source.inspectedAt)} | ${source.id}`,false,8);
+  if(type==='maintenance'&&y>330&&list.length<=2){y-=14;text(label,true,12);}else newPage(label);text(`Veículo: ${source?.vehicleName||r.vehicleName}`,true);if(source){text(`Registro: ${date(source.inspectedAt)} | ${source.id}`,false,8);text(`Motorista: ${source.driver||'Não informado'}`,false,9);}
   if(type==='damage'&&source===r){text('Relato do ocorrido',true);reports();}
   if(!list.length){text('Nenhuma foto disponível neste registro.');return;}
   let top=y;
@@ -43,10 +43,11 @@ async function render(data,type,getPhoto,now=Date.now()){
    const p=list[i],raw=getPhoto(p.id)?.data;
    if(!raw)throw new Error('Não foi possível carregar uma foto. Emissão interrompida.');
    const image=await pdf.embedJpg(raw),row=Math.floor((i%4)/2),col=i%2;
-   const cellHeight=Math.min(280,(top-65)/(list.length<=2?1:2)),scale=Math.min(244/image.width,(cellHeight-35)/image.height);
+   const cellHeight=Math.min(280,(top-65)/(list.length<=2?1:2)),scale=Math.min(244/image.width,(cellHeight-85)/image.height);
    const x=42+col*266,baseline=top-row*cellHeight;
    page.drawText(clean(`${i+1}. ${items[p.item]||p.item}`),{x,y:baseline,font:bold,size:8,color:gray});
-   page.drawImage(image,{x:x+(244-image.width*scale)/2,y:baseline-15-image.height*scale,width:image.width*scale,height:image.height*scale});
+   if(p.caption){const caption=clean(p.caption);const lines=caption.match(/.{1,44}(?:\s|$)|.{1,44}/g)||[];lines.forEach((line,j)=>page.drawText(line.trim(),{x,y:baseline-13-j*10,font,size:8,color:gray}));}
+   page.drawImage(image,{x:x+(244-image.width*scale)/2,y:baseline-65-image.height*scale,width:image.width*scale,height:image.height*scale});
    y=top-(row+1)*cellHeight;
   }
  }
@@ -69,6 +70,7 @@ async function render(data,type,getPhoto,now=Date.now()){
   text('Comparação visual: as fotos isoladamente não determinam quando ocorreu o dano ou quem o causou.',false,9);
  }else{
   y-=12;text('Peças / serviços a avaliar',true,12);
+  for(const [key,label] of [['parts','Peças / serviços solicitados'],['budget','Orçamento informado'],['actions','Providências']])if(r.maintenance?.[key]){text(label,true);text(r.maintenance[key]);}
   text('Preencher após avaliação técnica. O relato da vistoria não define sozinho a peça a substituir.');
   for(let i=0;i<3;i++)text('________________________________________________________________________________');
   text('Solicitado por: _______________________ Data: _______________________');

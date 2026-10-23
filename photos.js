@@ -1,7 +1,7 @@
 let inspectionPhotos=[],photoBusy=false,photoItem=null;
 function renderPhotos(item){
  const list=inspectionPhotos.filter(p=>p.item===item);
- return `<div class="photo-actions"><button onclick="choosePhoto('${item}',true)">Tirar foto</button><button onclick="choosePhoto('${item}',false)">Escolher foto</button></div><p class="muted">Até 10 fotos por registro. Fotos são enviadas ao concluir.</p><div class="photo-grid">${list.map(p=>`<figure><img src="${p.data}" alt="Foto da ocorrência"><button onclick="removePhoto('${p.id}')">Remover</button></figure>`).join('')}</div>`;
+ return `<div class="photo-actions"><button onclick="choosePhoto('${item}',true)">Tirar foto</button><button onclick="choosePhoto('${item}',false)">Escolher foto</button></div><p class="muted">Até 10 fotos por registro. Fotos são enviadas ao concluir.</p><div class="photo-grid">${list.map(p=>`<figure><img src="${p.data}" alt="Foto da ocorrência"><label>Legenda (opcional)<input maxlength="160" value="${esc(p.caption||'')}" oninput="inspectionPhotos.find(p=>p.id==='${p.id}').caption=this.value"></label><button onclick="removePhoto('${p.id}')">Remover</button></figure>`).join('')}</div>`;
 }
 function choosePhoto(item,camera){
  if(photoBusy){showModal('Aguarde','Estamos preparando a foto.');return;}

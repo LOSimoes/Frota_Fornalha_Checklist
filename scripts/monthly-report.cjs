@@ -76,6 +76,7 @@ async function render(report, evidence, getPhoto, month) {
     line(`Registro: ${r.inspectedAt}; recebido: ${r.receivedAt || 'Não informado'}`);
     if (r.description) line(`Relato: ${r.description}`);
     if (r.location) line(`Local: ${r.location}`);
+    for(const [key,label] of [['parts','Peças / serviços'],['budget','Orçamento'],['actions','Providências']])if(r.maintenance?.[key])line(`${label}: ${r.maintenance[key]}`);
     if (r.kmNote) line(`Observação de quilometragem: ${r.kmNote}`);
     for (const [key, answer] of Object.entries(r.answers || {})) {
       const level = { oleo: r.oilLevel, agua: r.waterLevel, hidraulico: r.hydraulicLevel }[key];
@@ -98,6 +99,7 @@ async function render(report, evidence, getPhoto, month) {
     line('Evidência fotográfica', true, 16);
     line(`${e.record.vehicleName} | ${dateKey(e.record.inspectedAt)} | ${report.items[e.photo.item] || e.photo.item}`, true);
     line(`Registro de origem: ${e.record.id}`);
+    if(e.photo.caption)line(`Legenda: ${e.photo.caption}`);
     if (general.has(e.photo.item)) line(`Comparação para: ${e.related.join(', ')}`);
     const scale = Math.min(508 / image.width, (y - 65) / image.height);
     page.drawImage(image, { x: 42, y: y - image.height * scale, width: image.width * scale, height: image.height * scale });

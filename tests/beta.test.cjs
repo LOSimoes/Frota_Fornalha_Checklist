@@ -24,3 +24,11 @@ test('backup consistente reabre com fotos e registros',t=>{
  const destination=path.join(root,'backup');backup(source,destination);const restored=openStore(destination);
  try{assert.equal(restored.list('2026-10-08').total,1);assert.deepEqual(Buffer.from(restored.photo(r.photos[0].id).data),image);assert.throws(()=>backup(source,destination));}finally{restored.close();store.close();assert.equal(path.dirname(path.resolve(root)),path.resolve(os.tmpdir()));assert.ok(path.basename(root).startsWith('fornalha-beta-'));fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('legendas e manutenção são opcionais, persistem e mantêm reenvio idempotente',t=>{
+ const s=setup(t),r=fixture();r.photos[0].caption='Detalhe do retrovisor';r.maintenance={parts:'Retrovisor',budget:'R$ 200 estimados',actions:'Solicitar orçamento'};
+ s.save(r);assert.equal(s.save(r).duplicate,true);const saved=s.list('2026-10-08').records[0];assert.equal(saved.photos[0].caption,r.photos[0].caption);assert.deepEqual(saved.maintenance,r.maintenance);
+ const empty=fixture();empty.maintenance={parts:'',budget:'',actions:''};empty.photos[0].caption='';s.save(empty);assert.equal(s.save(empty).duplicate,true);
+ const invalid=fixture();invalid.photos[0].caption='x'.repeat(161);assert.throws(()=>s.save(invalid),/Legenda/);
+ const invalidFields=fixture();invalidFields.maintenance={parts:4};assert.throws(()=>s.save(invalidFields),/opcionais/);
+});

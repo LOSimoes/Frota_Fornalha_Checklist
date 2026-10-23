@@ -190,20 +190,26 @@ function openStore(dir) {
     save(raw, now = Date.now()) {
       if(raw?.version>=2&&!(raw.version===3&&raw.type==='Ocorrência'&&raw.driverId==null)&&(!Number.isInteger(raw.driverId)||!db.prepare('SELECT id FROM drivers WHERE id=?').get(raw.driverId)))invalid('Motorista não encontrado. Atualize os cadastros.');
       const record = validate(raw, now, fleet());
+      if(raw.maintenance!==undefined){
+        if(!raw.maintenance||typeof raw.maintenance!=='object'||Array.isArray(raw.maintenance))invalid('Informações de manutenção inválidas.');
+        const fields={};for(const key of ['parts','budget','actions']){const v=raw.maintenance[key];if(v!==undefined&&(typeof v!=='string'||v.length>1000))invalid('Use até 1.000 caracteres nos campos opcionais.');if(v?.trim())fields[key]=v.trim();}
+        if(Object.keys(fields).length)record.maintenance=fields;
+      }
       if(raw.photos!==undefined&&(!Array.isArray(raw.photos)||raw.photos.length>10))invalid('Use no máximo dez fotos por registro.');
       const ids=new Set();
       const photos=(raw.photos||[]).map(photo=>{
         if(!photo||typeof photo.id!=='string'||!/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i.test(photo.id)||ids.has(photo.id))invalid('Identificação de foto inválida.');
         ids.add(photo.id);
+        if(photo.caption!==undefined&&(typeof photo.caption!=='string'||photo.caption.length>160))invalid('Legenda deve ter até 160 caracteres.');
         if(!(raw.version>=4&&record.type==='Saída'&&generalPhotos.includes(photo.item))&&(!Object.hasOwn(items,photo.item)||record.answers[photo.item]!=='Problema'))invalid('Vincule a foto a um problema informado.');
         if(typeof photo.data!=='string'||photo.data.length>620000||!/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/.test(photo.data))invalid('Formato de foto inválido.');
         const data=Buffer.from(photo.data.split(',')[1],'base64');
         if(data.length<4||data.length>450000||data[0]!==255||data[1]!==216||data[data.length-2]!==255||data[data.length-1]!==217)invalid('Foto JPEG inválida ou acima do limite.');
         const dimensions=jpegSize(data);if(!dimensions||!dimensions.width||!dimensions.height||dimensions.width>1600||dimensions.height>1600)invalid('Foto inválida ou com dimensões acima do limite.');
-        return {id:photo.id.toLowerCase(),item:photo.item,data,sha256:crypto.createHash('sha256').update(data).digest('hex')};
+        return {id:photo.id.toLowerCase(),item:photo.item,...(photo.caption?.trim()?{caption:photo.caption.trim()}:{}),data,sha256:crypto.createHash('sha256').update(data).digest('hex')};
       });
       if(raw.version>=4&&record.type==='Saída'&&generalPhotos.some(item=>!photos.some(p=>p.item===item)))invalid('Inclua fotos gerais da frente, traseira e das duas laterais.');
-      if(photos.length)record.photos=photos.map(p=>({id:p.id,item:p.item,sha256:p.sha256,bytes:p.data.length}));
+      if(photos.length)record.photos=photos.map(p=>({id:p.id,item:p.item,...(p.caption?{caption:p.caption}:{}),sha256:p.sha256,bytes:p.data.length}));
       const payload = JSON.stringify(record);
       const existing = db.prepare('SELECT payload, received_at FROM inspections WHERE id=?').get(record.id);
       if (existing) {
